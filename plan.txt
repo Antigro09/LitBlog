@@ -1,0 +1,26 @@
+my-blog-app/
+├── node_modules/
+├── views/                # Your EJS views
+│   ├── index.ejs         # Homepage
+│   ├── login.ejs         # Login page
+│   ├── dashboard.ejs     # Student dashboard
+│   └── admin.ejs         # Teacher admin panel
+├── models/               # Mongoose models (for MongoDB)
+│   ├── User.js           # User model (students & teachers)
+│   └── Blog.js           # Blog post model
+├── routes/               # Routes for handling HTTP requests
+│   ├── index.js          # Main routes
+│   ├── auth.js           # Authentication routes
+│   ├── blog.js           # Routes for managing blogs
+│   └── admin.js          # Routes for teacher admin actions
+├── controllers/          # Logic for handling routes
+│   ├── authController.js
+│   ├── blogController.js
+│   └── adminController.js
+├── config/               # Configuration files (DB, Auth, etc.)
+│   ├── db.js
+│   └── passport.js
+├── public/               # Static files like CSS, JavaScript, images
+├── app.js                # Main application entry file
+├── package.json
+└── .gitignore
