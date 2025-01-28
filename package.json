@@ -4,7 +4,7 @@
   "description": "The new and improved version of the CIT's English Blog website, LitBlog!",
   "main": "tailwind.config.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node app.js"
   },
   "keywords": [],
   "author": "",
