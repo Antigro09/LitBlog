@@ -1,25 +1,24 @@
-/*
-const express = require('express');
-const path = require('path');
+const express = require("express");
+const path = require("path");
+
 const app = express();
 
-// Set EJS as the view engine
-app.set('view engine', 'ejs');
+// Serve static files (CSS, JS, Images)
+app.use(express.static(path.join(__dirname, "public")));
 
-// Set the views directory (optional if you have a custom folder structure)
-app.set('views', path.join(__dirname, 'views'));
+// Serve HTML files from the "views" directory
+app.use(express.static(path.join(__dirname, "views")));
 
-// Serve static files like CSS, images, etc.
-app.use(express.static(path.join(__dirname, 'public')));
+// Route to serve the homepage
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "views", "index.html"));
+});
 
-// Sample route to render the EJS page
-app.get('/', (req, res) => {
-    res.render('index', { title: 'LitBlogs', message: 'Testing sigma' });
+// Route for login page
+app.get("/login", (req, res) => {
+    res.sendFile(path.join(__dirname, "views", "login.html"));
 });
 
 // Start the server
-app.listen(5000, () => {
-    console.log('Server is running on http://localhost:5000');
-});
-*/
-console.log("Testing only");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
