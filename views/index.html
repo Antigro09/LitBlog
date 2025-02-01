@@ -4,12 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LitBlogs</title>
+    <link href="/public/images/logo.png" type="image/x-icon" rel="icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Navbar Styling */
         .navbar {
             background-image: linear-gradient(to right, #000000 30%, #4c6a92 100%);
             padding: 10px 0;
+            height: 130px;
         }
         .navbar-container {
             display: flex;
@@ -33,7 +35,7 @@
         .navbar-links a {
             flex: 1;
             text-align: center;
-            padding: 12px;
+            padding: 10px 0;
             border: 2px solid white;
             transition: 0.3s;
         }
@@ -48,27 +50,29 @@
             justify-content: center;
             gap: 30px;
             margin: 40px auto;
-            max-width: 900px;
+            max-width: 1000px;
         }
+        /* Layout Styling */
         .slider-container {
             position: relative;
-            width: 65%;
-            height: 12rem;
+            width: 85%;
+            height: 16rem; /* Increased height */
             overflow: hidden;
         }
-        .slider {
-            display: flex;
-            transition: transform 0.5s ease-in-out;
-        }
+
         .slide {
             min-width: 100%;
-            height: 12rem;
+            height: 16rem; /* Increased height */
             background-size: cover;
             background-position: center;
             opacity: 0;
             transition: opacity 0.5s ease-in-out;
             position: absolute;
             width: 100%;
+        }
+        .slider {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
         }
         .slide.active {
             opacity: 1;
@@ -93,18 +97,26 @@
             background-color: white;
         }
         .welcome-text {
-            width: 70%;
+            width: 85%;
             text-align: center;
         }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
 
-    <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-container">
             <img src="/public/images/logo.png" alt="Logo" class="h-10">
             <div class="navbar-title">LitBlogs</div>
+    
+            <!-- Right side: Profile Icon and Sign In -->
+            <div class="profile-container flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" class="h-12 w-12 text-white border-2 border-white rounded-full p-1">
+                    <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"/>
+                </svg>
+                <a href="#" class="text-white">Sign In</a>
+            </div>
+            
         </div>
         <br>
         <div class="navbar-links">
@@ -112,14 +124,13 @@
             <a href="#">Ms. Tambellini's 10 English</a>
             <a href="#">Ms. Musk's 9 English</a>
             <a href="#">Help</a>
-            <a href="#">Sign In</a>
         </div>
-    </nav>
+    </nav>    
 
 <!-- Main Content -->
 <section class="content-container">
     <!-- Image Slider -->
-    <div class="slider-container relative mr-10"> <!-- Added margin-right here -->
+    <div class="slider-container relative mr-20"> <!-- Added margin-right here -->
         <div class="slider">
             <div class="slide active" style="background-image: url('/public/images/logo.png');"></div>
             <div class="slide" style="background-image: url('/public/images/Among%20us.PNG');"></div>
@@ -134,7 +145,7 @@
     </div>
 
     <!-- Welcome Text -->
-    <div class="welcome-text ml-20"> <!-- Added margin-top here -->
+    <div class="welcome-text ml-5"> <!-- Added margin-top here -->
         <h2 class="text-2xl font-bold mb-2">Welcome to LitBlog!</h2>
         <p>Step into a world of literature and technology with LitBlog, a dynamic platform inspired by Mrs. Tambellini's English 10A-CIT class!</p>
         <p class="mt-2">Developed by students from the Center for Information Technology (CIT), LitBlog fosters creativity and connection among students throughout their literary endeavors.</p>
