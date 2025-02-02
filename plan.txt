@@ -1,7 +1,7 @@
 my-blog-app/
 ├── node_modules/
 ├── views/                # Your EJS views
-│   ├── index.ejs         # Homepage
+│   ├── home.html         # Homepage
 │   ├── login.ejs         # Login page
 │   ├── dashboard.ejs     # Student dashboard
 │   └── admin.ejs         # Teacher admin panel
