@@ -9,9 +9,11 @@
     <style>
         /* Navbar Styling */
         .navbar {
-            background-image: linear-gradient(to right, #000000 30%, #4c6a92 100%);
+            background-image: linear-gradient(to right, #000000 8%, #223f8f 100%);
             padding: 10px 0;
+            top: 0; width: 100%;
             height: 130px;
+            position: fixed;
         }
         .navbar-container {
             display: flex;
@@ -30,13 +32,15 @@
         /* Full-Width Navigation Links */
         .navbar-links {
             display: flex;
-            width: 100%;
+            width: 100%; /* Ensure it takes up the full width of the viewport */
+            background-color: #223f8f;
         }
+
         .navbar-links a {
-            flex: 1;
+            flex: 1; /* Makes each link take an equal amount of space */
             text-align: center;
             padding: 10px 0;
-            border: 2px solid white;
+            border: 2px solid black;
             transition: 0.3s;
         }
         .navbar-links a:hover {
@@ -102,9 +106,9 @@
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white">
+<body class="bg-gray-900 text-white pt-[130px]">
 
-    <nav class="navbar">
+    <nav class="navbar z-50">
         <div class="navbar-container">
             <img src="/public/images/logo.png" alt="Logo" class="h-10">
             <div class="navbar-title">LitBlogs</div>
