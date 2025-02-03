@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LitBlogs</title>
     <link href="/public/images/logo.png" type="image/x-icon" rel="icon">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script>    
     <style>
         /* Navbar Styling */
         .navbar {
@@ -27,7 +27,6 @@
             transform: translateX(-50%);
             font-size: 1.8rem;
             font-weight: bold;
-            color: white;
         }
         /* Full-Width Navigation Links */
         .navbar-links {
@@ -44,24 +43,32 @@
             transition: 0.3s;
         }
         .navbar-links a:hover {
-            background-color: #374151;
+            background-color: #12305d;
         }
 
         /* Layout Styling */
         .content-container {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 30px;
-            margin: 40px auto;
+            justify-content: flex-start; /* Align everything to the left */
+            gap: 50px; /* Increase gap to give text more room */
             max-width: 1000px;
+            margin: 40px auto;
+            padding-left: 20px; /* Push the whole section slightly right */
         }
-        /* Layout Styling */
+
         .slider-container {
-            position: relative;
-            width: 85%;
-            height: 16rem; /* Increased height */
+            flex: 1.3; /* Give it more weight than the text */
+            max-width: 500px; /* Set max width so it doesn't take over */
+            height: 16rem;
             overflow: hidden;
+            margin-left: -125px;
+        }
+
+        .welcome-text {
+            flex: 1; /* Ensure text takes up its own space */
+            min-width: 320px; /* Prevent excessive shrinking */
+            text-align: center;
         }
 
         .slide {
@@ -100,18 +107,29 @@
         .indicator.active {
             background-color: white;
         }
-        .welcome-text {
-            width: 85%;
-            text-align: center;
+        .toggle-button {
+            position: flex;
+            padding: 10px 20px;
+            background-color: #ffffff;
+            color: #000000;
+            border: 2px solid #000000;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 10;
+        }
+        .dark .toggle-button {
+            background-color: #222;
+            color: #fff;
+            border: 2px solid #fff;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white pt-[130px]">
+<body class="bg-white text-black dark:bg-gray-900 dark:text-white pt-[130px]">
 
-    <nav class="navbar z-50">
+    <nav class="navbar z-50 shadow-2xl">
         <div class="navbar-container">
             <img src="/public/images/logo.png" alt="Logo" class="h-10">
-            <div class="navbar-title">LitBlogs</div>
+            <div class="navbar-title text-white">LitBlogs</div>
     
             <!-- Right side: Profile Icon and Sign In -->
             <div class="profile-container flex items-center gap-2">
@@ -123,7 +141,7 @@
             
         </div>
         <br>
-        <div class="navbar-links">
+        <div class="navbar-links text-white">
             <a href="home.html">Home</a>
             <a href="#">Ms. Tambellini's 10 English</a>
             <a href="#">Ms. Musk's 9 English</a>
@@ -134,22 +152,22 @@
 <!-- Main Content -->
 <section class="content-container">
     <!-- Image Slider -->
-    <div class="slider-container relative mr-20"> <!-- Added margin-right here -->
+    <div class="slider-container relative">
         <div class="slider">
             <div class="slide active" style="background-image: url('/public/images/logo.png');"></div>
             <div class="slide" style="background-image: url('/public/images/Among%20us.PNG');"></div>
             <div class="slide" style="background-image: url('/public/images/logo.png');"></div>
             <div class="slide" style="background-image: url('/public/images/classroom2.jpg');"></div>
         </div>
-        <button onclick="prevSlide()" class="absolute left-2 top-1/2 transform -translate-y-1/2 bg-gray-700 p-2">&#10094;</button>
-        <button onclick="nextSlide()" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-700 p-2">&#10095;</button>
+        <button onclick="prevSlide()" class="absolute left-2 top-1/2 transform -translate-y-1/2 bg-gray-700 text-white p-2">&#10094;</button>
+        <button onclick="nextSlide()" class="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-700 text-white p-2">&#10095;</button>
 
         <!-- Slide Indicators -->
         <div class="indicators"></div>
     </div>
 
     <!-- Welcome Text -->
-    <div class="welcome-text ml-5"> <!-- Added margin-top here -->
+    <div class="welcome-text">
         <h2 class="text-2xl font-bold mb-2">Welcome to LitBlog!</h2>
         <p>Step into a world of literature and technology with LitBlog, a dynamic platform inspired by Mrs. Tambellini's English 10A-CIT class!</p>
         <p class="mt-2">Developed by students from the Center for Information Technology (CIT), LitBlog fosters creativity and connection among students throughout their literary endeavors.</p>
@@ -194,7 +212,7 @@
             showSlide(currentSlide);
         }
     </script>
-
+<div class="w-11/12 mx-auto border-t-2 border-black dark:border-gray-300 my-6"></div>
     <!-- Teacher Introductions -->
     <section class="p-6">
         <div class="flex items-center gap-6">
@@ -209,7 +227,7 @@
             <p>Blah blah</p>
         </div>
     </section>
-    
+    <div class="w-11/12 mx-auto border-t-2 border-black dark:border-gray-300 my-6"></div>
     <section class="p-6">
         <div class="flex items-center gap-6">
             <img src="musk.jpg" alt="Ms. Musk" class="h-32 rounded-lg">
@@ -223,10 +241,38 @@
             <p>Blah blah</p>
         </div>
     </section>
-
+    <button onclick="toggleDarkMode()" class="toggle-button">Toggle Dark Mode</button>
     <!-- Footer -->
-    <footer class="bg-gray-800 text-center p-4 mt-6">
+    <footer class="bg-blue-900 text-center text-white p-4 mt-6">
         &copy; 2025 LitBlogs. All rights reserved.
-    </footer>
+    </footer> 
+<script>
+    tailwind.config = {
+            darkMode: 'class'
+    };
+    document.addEventListener("DOMContentLoaded", () => {
+        const toggleButton = document.querySelector(".toggle-button");
+        const html = document.documentElement;
+        const savedTheme = localStorage.getItem("theme");
+
+        // Default to light mode unless dark mode was previously saved
+        if (savedTheme === "dark") {
+            html.classList.add("dark");
+        } else {
+            html.classList.remove("dark");
+            localStorage.setItem("theme", "light"); // Ensure light mode is saved
+        }
+
+        toggleButton.addEventListener("click", () => {
+            html.classList.toggle("dark");
+
+            if (html.classList.contains("dark")) {
+                localStorage.setItem("theme", "dark");
+            } else {
+                localStorage.setItem("theme", "light");
+            }
+        })
+    });
+</script> 
 </body>
 </html>
