@@ -5,8 +5,113 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite + React</title>
+    <style>
+      /* Navbar Styling */
+      .navbar {
+          background-image: linear-gradient(to right, #000000 30%, #4c6a92 100%);
+          padding: 10px 0;
+          top: 0; width: 100%;
+          height: 105px;
+          position: fixed;
+      }
+      .navbar-container {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 20px;
+      }
+      .navbar-title {
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+          font-size: 1.8rem;
+          font-weight: bold;
+          color: white;
+      }
+      /* Full-Width Navigation Links */
+      .navbar-links {
+          display: flex;
+          width: 100%; /* Ensure it takes up the full width of the viewport */
+      }
+
+      .navbar-links a {
+          flex: 1; /* Makes each link take an equal amount of space */
+          text-align: center;
+          padding: 10px 0;
+          border: 2px solid gray;
+          transition: 0.3s;
+      }
+      .navbar-links a:hover {
+          background-color: #374151;
+      }
+
+      /* Layout Styling */
+      .content-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 30px;
+          margin: 40px auto;
+          max-width: 1000px;
+      }
+      /* Layout Styling */
+      .slider-container {
+          position: relative;
+          width: 85%;
+          height: 16rem; /* Increased height */
+          overflow: hidden;
+      }
+
+      .slide {
+          min-width: 100%;
+          height: 16rem; /* Increased height */
+          background-size: cover;
+          background-position: center;
+          opacity: 0;
+          transition: opacity 0.5s ease-in-out;
+          position: absolute;
+          width: 100%;
+      }
+      .slider {
+          display: flex;
+          transition: transform 0.5s ease-in-out;
+      }
+      .slide.active {
+          opacity: 1;
+          position: relative;
+      }
+      .indicators {
+          position: absolute;
+          bottom: 5px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 6px;
+      }
+      .indicator {
+          width: 10px;
+          height: 4px;
+          background-color: gray;
+          border-radius: 2px;
+          transition: background-color 0.3s;
+      }
+      .indicator.active {
+          background-color: white;
+      }
+      .welcome-text {
+          width: 85%;
+          text-align: center;
+      }
+      /* Default Light Mode */
+    .bg-light {
+    background-color: #ffffff;
+    }
+    .text-light {
+    color: #000000;
+    }
+  </style>
   </head>
-  <body>
+  <body class="bg-gray-900 text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
