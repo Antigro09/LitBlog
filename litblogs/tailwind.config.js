@@ -8,6 +8,12 @@ export default {
   theme: {
     extend: {},
   },
-  plugins: [],
+  safelist: [
+
+  ],
+  plugins: [
+    require('@tailwindcss/typography'),
+    require('@tailwindcss/forms'),
+  ],
 }
 
