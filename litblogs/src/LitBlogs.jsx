@@ -10,17 +10,27 @@ const LitBlogs = () => {
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const dropdownRef = useRef(null);
-        AOS.init({
-            duration: 800,
-            once: true,
-            easing: 'ease-in-out',
-            mirror: false
-        });
   const slides = [
-    "/logo.png",
-    "/images/Among%20us.PNG",
-    "/images/logo.png",
-    "/images/classroom2.jpg",
+    {
+      title: "Welcome to LitBlogs",
+      description: "A community where writers and readers connect.",
+      image: "/logo.png",
+    },
+    {
+      title: "Add a Blog",
+      steps: [
+        "Step 1: Click on the 'Add Blog' button",
+        "Step 2: Enter your blog title and content",
+        "Step 4: Click 'Publish' to share your blog",
+      ],
+      image: "/logo.png",
+    },
+    {
+      leftImage: "here",
+      leftDescription: "Ms. Tambellini",
+      rightImage: "here",
+      rightDescription: "Ms. Musk",
+    },
   ];
 
   // Handle next and previous slides
@@ -267,21 +277,53 @@ const LitBlogs = () => {
 
       {/* Slider */}
       <motion.div
-        className={`slider-container relative w-full ${window.innerWidth < 640 ? "h-48" : "h-72"} md:h-96 overflow-hidden rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 transition-all`}      
+        className={`slider-container relative w-full ${window.innerWidth < 640 ? "h-48" : "h-72"} md:h-96 overflow-hidden rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 transition-all`}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
         <div className="slider">
-          {slides.map((src, index) => (
+          {slides.map((slide, index) => (
             <motion.div
               key={index}
-              className={`slide absolute w-full h-full bg-cover bg-center transition-all duration-1000 ease-in-out ${currentSlide === index ? 'opacity-100' : 'opacity-0'}`}
-              style={{ backgroundImage: `url(${src})` }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: currentSlide === index ? 1 : 0 }}
-              transition={{ opacity: { duration: 1 }, x: { duration: 0.5 } }}
-            ></motion.div>
+              className={`slide absolute w-full h-full transition-all duration-1000 ease-in-out ${currentSlide === index ? 'opacity-100' : 'opacity-0'}`}
+              initial={{ x: "100%" }}
+              animate={{ x: currentSlide === index ? 0 : "100%" }}
+              transition={{ x: { duration: 0.5 } }}
+            >
+              {index === 0 && (
+                <div className="flex h-full items-center justify-center">
+                  <div className="text-center">
+                    <h2 className="text-3xl font-bold mb-4">{slide.title}</h2>
+                    <p className="text-lg text-gray-600 dark:text-gray-400">{slide.description}</p>
+                  </div>
+                  <img src={slide.image} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md ml-8" />
+                </div>
+              )}
+              {index === 1 && (
+                <div className="flex h-full items-center justify-center flex-col">
+                  <h2 className="text-3xl font-bold mb-4">{slide.title}</h2>
+                  <ul className="text-lg text-gray-600 dark:text-gray-400 list-disc list-inside mb-8">
+                    {slide.steps.map((step, index) => (
+                      <li key={index}>{step}</li>
+                    ))}
+                  </ul>
+                  <img src={slide.image} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md" />
+                </div>
+              )}
+              {index === 2 && (
+                <div className="flex h-full items-center justify-center">
+                  <div className="text-center mr-8">
+                    <img src={slide.leftImage} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md" />
+                    <p className="text-lg text-gray-600 dark:text-gray-400 mt-4">{slide.leftDescription}</p>
+                  </div>
+                  <div className="text-center ml-8">
+                    <img src={slide.rightImage} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md" />
+                    <p className="text-lg text-gray-600 dark:text-gray-400 mt-4">{slide.rightDescription}</p>
+                  </div>
+                </div>
+              )}
+            </motion.div>
           ))}
         </div>
 
