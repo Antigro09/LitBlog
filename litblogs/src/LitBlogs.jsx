@@ -11,26 +11,10 @@ const LitBlogs = () => {
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const dropdownRef = useRef(null);
   const slides = [
-    {
-      title: "Welcome to LitBlogs",
-      description: "A community where writers and readers connect.",
-      image: "/logo.png",
-    },
-    {
-      title: "Add a Blog",
-      steps: [
-        "Step 1: Click on the 'Add Blog' button",
-        "Step 2: Enter your blog title and content",
-        "Step 4: Click 'Publish' to share your blog",
-      ],
-      image: "/logo.png",
-    },
-    {
-      leftImage: "here",
-      leftDescription: "Ms. Tambellini",
-      rightImage: "here",
-      rightDescription: "Ms. Musk",
-    },
+    "/Classroom1.jpeg",
+    "/Classroom2.jpeg",
+    "/Classroom3.jpeg",
+    "/Classroom4.jpeg",
   ];
 
   // Handle next and previous slides
@@ -102,7 +86,7 @@ const LitBlogs = () => {
   };
 
   return (
-    <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
+    <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
       <nav className="navbar z-50 fixed top-4 left-1/2 transform -translate-x-1/2 w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
         <div className="flex items-center gap-6 whitespace-nowrap">
@@ -205,16 +189,20 @@ const LitBlogs = () => {
           </div>
 
           {/* Sign In Icon */}
-          <motion.svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 448 512"
-            className={`h-6 w-6 p-1 border-2 rounded-full cursor-pointer transition-all duration-300 ${
-              darkMode ? 'fill-white border-white hover:bg-gray-700' : 'fill-gray-900 border-gray-900 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-            whileHover={{ scale: 1.1 }}
-          >
-            <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zM178.3 304C79.8 304 0 383.8 0 482.3 0 498.7 13.3 512 29.7 512h388.6c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3z" />
-          </motion.svg>
+          <Link to="/sign-in">
+            <motion.svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 448 512"
+              className={`h-6 w-6 p-1 border-2 rounded-full cursor-pointer transition-all duration-300 ${
+                darkMode
+                  ? 'fill-white border-white hover:bg-gray-700'
+                  : 'fill-gray-900 border-gray-900 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              whileHover={{ scale: 1.1 }}
+            >
+              <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zM178.3 304C79.8 304 0 383.8 0 482.3 0 498.7 13.3 512 29.7 512h388.6c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3z" />
+            </motion.svg>
+          </Link>
         </div>
       </nav>
 
@@ -234,7 +222,7 @@ const LitBlogs = () => {
       {/* Content */}
       <section className="py-24 text-center overflow-visible">
         <motion.h2
-          className="relative -top-2 text-5xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent pt-2 pb-3"
+          className="relative -top-2 text-5xl md:text-7xl font-bold mb-4 bg-gradient-text bg-clip-text text-transparent pt-2 pb-3"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -276,82 +264,52 @@ const LitBlogs = () => {
       </section>
 
       {/* Slider */}
-      <motion.div
-        className={`slider-container relative w-full ${window.innerWidth < 640 ? "h-48" : "h-72"} md:h-96 overflow-hidden rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 transition-all`}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="slider">
-          {slides.map((slide, index) => (
-            <motion.div
-              key={index}
-              className={`slide absolute w-full h-full transition-all duration-1000 ease-in-out ${currentSlide === index ? 'opacity-100' : 'opacity-0'}`}
-              initial={{ x: "100%" }}
-              animate={{ x: currentSlide === index ? 0 : "100%" }}
-              transition={{ x: { duration: 0.5 } }}
-            >
-              {index === 0 && (
-                <div className="flex h-full items-center justify-center">
-                  <div className="text-center">
-                    <h2 className="text-3xl font-bold mb-4">{slide.title}</h2>
-                    <p className="text-lg text-gray-600 dark:text-gray-400">{slide.description}</p>
-                  </div>
-                  <img src={slide.image} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md ml-8" />
-                </div>
-              )}
-              {index === 1 && (
-                <div className="flex h-full items-center justify-center flex-col">
-                  <h2 className="text-3xl font-bold mb-4">{slide.title}</h2>
-                  <ul className="text-lg text-gray-600 dark:text-gray-400 list-disc list-inside mb-8">
-                    {slide.steps.map((step, index) => (
-                      <li key={index}>{step}</li>
-                    ))}
-                  </ul>
-                  <img src={slide.image} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md" />
-                </div>
-              )}
-              {index === 2 && (
-                <div className="flex h-full items-center justify-center">
-                  <div className="text-center mr-8">
-                    <img src={slide.leftImage} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md" />
-                    <p className="text-lg text-gray-600 dark:text-gray-400 mt-4">{slide.leftDescription}</p>
-                  </div>
-                  <div className="text-center ml-8">
-                    <img src={slide.rightImage} alt={slide.title} className="h-48 w-48 object-cover rounded-lg shadow-md" />
-                    <p className="text-lg text-gray-600 dark:text-gray-400 mt-4">{slide.rightDescription}</p>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Left and Right Navigation Buttons */}
-        <button
-          onClick={prevSlide}
-          className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-gray-700/80 p-2 text-white rounded-full hover:bg-gray-600 transition-all"
+      <div className="flex items-center justify-center h-screen mb-10">
+        <motion.div
+          className="slider-container relative w-[80%] md:w-[90%] max-w-[1200px] h-[600px] overflow-hidden rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 transition-all mx-auto"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
         >
-          &#10094;
-        </button>
-        <button
-          onClick={nextSlide}
-          className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-gray-700/80 p-2 text-white rounded-full hover:bg-gray-600 transition-all"
-        >
-          &#10095;
-        </button>
+          <div className="slider">
+            {slides.map((src, index) => (
+              <motion.div
+                key={index}
+                className={`slide absolute w-full h-full bg-cover bg-center transition-all duration-1000 ease-in-out ${currentSlide === index ? 'opacity-100' : 'opacity-0'}`}
+                style={{ backgroundImage: `url(${src})` }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: currentSlide === index ? 1 : 0 }}
+                transition={{ duration: 0.8 }}
+              ></motion.div>
+            ))}
+          </div>
 
-        {/* Slide Indicators */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-          {slides.map((_, index) => (
-            <div
-              key={index}
-              className={`indicator w-3 h-3 rounded-full cursor-pointer transition-all duration-300 ease-in-out ${currentSlide === index ? 'scale-110 opacity-100' : 'scale-75 opacity-50'} ${darkMode ? 'bg-white' : 'bg-gray-800'}`}
-              onClick={() => setCurrentSlide(index)}
-            ></div>
-          ))}
-        </div>
-      </motion.div>
+          {/* Left and Right Navigation Buttons */}
+          <button
+            onClick={prevSlide}
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-gray-700/80 p-2 text-white rounded-full hover:bg-gray-600 transition-all"
+          >
+            &#10094;
+          </button>
+          <button
+            onClick={nextSlide}
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-gray-700/80 p-2 text-white rounded-full hover:bg-gray-600 transition-all"
+          >
+            &#10095;
+          </button>
+
+          {/* Slide Indicators */}
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+            {slides.map((_, index) => (
+              <div
+                key={index}
+                className={`indicator w-3 h-3 rounded-full cursor-pointer transition-all duration-300 ease-in-out ${currentSlide === index ? 'scale-110 opacity-100' : 'scale-75 opacity-50'} bg-white`}
+                onClick={() => setCurrentSlide(index)}
+              ></div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
 
       {/* Teachers Section */}
       <section className="p-10 bg-gray-100 dark:bg-gray-800">

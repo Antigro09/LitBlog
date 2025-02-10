@@ -38,3 +38,27 @@
   transform: translateY(-10px);
   transition: opacity 300ms, transform 300ms;
 }
+
+/* Gradient animation */
+@keyframes gradient-loop {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Apply gradient animation to the text */
+.bg-gradient-text {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6, #8b5cf6);
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  animation: gradient-loop 3s linear infinite;
+  -webkit-background-clip: text;  /* For Safari */
+  background-clip: text;          /* For other browsers */
+  color: transparent;             /* Make the text transparent to show the gradient */
+}

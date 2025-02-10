@@ -81,7 +81,7 @@ const Musk = () => {
   }, []);
 
   return (
-    <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
+    <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
       <nav className="navbar z-50 fixed top-4 left-1/2 transform -translate-x-1/2 w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
         <div className="flex items-center gap-6 whitespace-nowrap">
@@ -211,9 +211,9 @@ const Musk = () => {
       </motion.div>
 
       {/* Content */}
-      <section className="py-24 text-center">
+      <section className="py-24 text-center overflow-visible">
         <motion.h2
-          className="relative -top-2 text-5xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent pt-2 pb-3"
+          className="relative -top-2 text-5xl md:text-7xl font-bold mb-4 bg-gradient-text bg-clip-text text-transparent pt-2 pb-3"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -231,7 +231,7 @@ const Musk = () => {
       </section>
 
       {/* Class Blocks (3, 5, 7) */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-8 px-10 py-12">
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-8 px-10 py-12 pt-3">
         {[3, 5, 7].map((classNumber) => (
           <motion.div
             key={classNumber}
@@ -263,9 +263,17 @@ const Musk = () => {
               <motion.div
                 key={index}
                 className="post bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg"
+                whileHover={{
+                  scale: 1.05,
+                  transition: { duration: 0.1 } // Fast transition for hover
+                }}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 * index }}
+                transition={{
+                  scale: { type: "spring", stiffness: 500, damping: 50 }, // Set transition for scaling
+                  opacity: { duration: 0.8, delay: 0.4 },
+                  y: { duration: 0.8, delay: 0.4 }
+                }}
               >
                 <h4 className="text-xl font-semibold text-gray-900 dark:text-white">{post.title}</h4>
                 <p className="text-gray-700 dark:text-gray-300 mt-4">{post.content}</p>
