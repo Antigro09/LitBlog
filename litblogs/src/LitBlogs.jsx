@@ -10,12 +10,12 @@ const LitBlogs = () => {
   const [email, setEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const dropdownRef = useRef(null);
-AOS.init({
-    duration: 800,
-    once: true,
-    easing: 'ease-in-out',
-    mirror: false
-});
+        AOS.init({
+            duration: 800,
+            once: true,
+            easing: 'ease-in-out',
+            mirror: false
+        });
   const slides = [
     "/logo.png",
     "/images/Among%20us.PNG",
