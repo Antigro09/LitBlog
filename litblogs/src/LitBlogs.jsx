@@ -237,6 +237,7 @@ const LitBlogs = () => {
         >
           Collaborate with creative minds. Publish your stories, engage with readers, and join a thriving community of writers.
         </motion.p>
+        <Link to="/sign-in">
         <motion.button
           className="bg-blue-600 text-white px-8 py-4 rounded-full text-lg flex items-center mx-auto shadow-lg"
           whileHover={{
@@ -261,6 +262,7 @@ const LitBlogs = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
           </svg>
         </motion.button>
+        </Link>
       </section>
 
       {/* Slider */}
