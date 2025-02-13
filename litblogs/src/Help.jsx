@@ -56,6 +56,45 @@ const Help = () => {
     }
   }, [darkMode]);
 
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const videoRef = useRef(null);
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      const progress = (videoRef.current.currentTime / videoRef.current.duration) * 100;
+      setProgress(progress);
+    }
+  };
+
+  const handleProgressClick = (e) => {
+    if (videoRef.current) {
+      const progressBar = e.currentTarget;
+      const clickPosition = (e.pageX - progressBar.offsetLeft) / progressBar.offsetWidth;
+      videoRef.current.currentTime = clickPosition * videoRef.current.duration;
+    }
+  };
+
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    if (videoRef.current) {
+      videoRef.current.volume = newVolume;
+    }
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
@@ -242,20 +281,72 @@ const Help = () => {
             Watch Our Tutorial
           </motion.h3>
           <motion.div
-            className="bg-gray-300 dark:bg-gray-700 h-64 w-full rounded-lg overflow-hidden"
+            className="bg-gray-300 dark:bg-gray-700 rounded-lg overflow-hidden"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8 }}
           >
-            {/* Custom HTML5 Video Player */}
-            <video
-              className="w-full h-full"
-              controls
-              poster="path/to/your/video-thumbnail.jpg" // Optional thumbnail before video starts
-            >
-              <source src="path/to/your/video.mp4" type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
+            <div className="relative">
+              <video
+                ref={videoRef}
+                className="w-full"
+                poster="path/to/your/video-thumbnail.jpg"
+                onTimeUpdate={handleTimeUpdate}
+                onClick={togglePlay}
+              >
+                <source src="path/to/your/video.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+              
+              {/* Custom Controls */}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-4">
+                {/* Progress Bar */}
+                <div 
+                  className="w-full h-1 bg-gray-600 rounded-full mb-4 cursor-pointer"
+                  onClick={handleProgressClick}
+                >
+                  <div 
+                    className="h-full bg-blue-500 rounded-full"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  {/* Play/Pause Button */}
+                  <button
+                    onClick={togglePlay}
+                    className="text-white hover:text-blue-400 transition-colors"
+                  >
+                    {isPlaying ? (
+                      <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </button>
+
+                  {/* Volume Control */}
+                  <div className="flex items-center">
+                    <svg className="w-6 h-6 text-white mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M15.5 14.4c1.5-1.5 1.5-3.8 0-5.3l-1.1 1.1c.8.8.8 2.2 0 3.1l1.1 1.1zM14 10.8c.3.3.3.8 0 1.1l1.1 1.1c.8-.8.8-2.2 0-3.1l-1.1.9z"/>
+                      <path d="M3 9v6h4l5 5V4L7 9H3z"/>
+                    </svg>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={volume}
+                      onChange={handleVolumeChange}
+                      className="w-24 accent-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
