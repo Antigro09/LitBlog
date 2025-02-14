@@ -203,14 +203,14 @@ const Musk = () => {
 
       {/* Toggle Dark Mode Button */}
       <motion.div
-        className="absolute top-32 right-4 z-10"
+        className="absolute top-5 right-4 z-10"
         whileHover={{ scale: 1.1 }}
       >
         <button
           onClick={toggleDarkMode}
-          className="bg-gray-800 text-white p-2.5 rounded-full shadow-lg transition-transform duration-300 hover:bg-gray-700"
+          className="bg-gray-800 text-white p-2 rounded-full shadow-lg"
         >
-          {darkMode ? "Light Mode" : "Dark Mode"}
+          {darkMode ? "🌞" : "🌙"}
         </button>
       </motion.div>
 
@@ -288,8 +288,36 @@ const Musk = () => {
       )}
 
       {/* Footer */}
-      <footer className="bg-gray-200 dark:bg-gray-900 py-8 text-center text-gray-700 dark:text-gray-300">
-        <p>&copy; 2025 Ms. Musk’s English 9. All Rights Reserved.</p>
+      <footer className={`mt-12 transition-all duration-300 ${darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gradient-to-r from-gray-100 to-gray-100 text-gray-900'}`}>
+        <div className="container mx-auto px-4 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-center md:text-left">
+            {/* LitBlog Info */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">LitBlog</h3>
+              <p className="text-gray-400">Connecting writers and readers worldwide</p>
+            </div>
+            {/* Resources */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Resources</h3>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#" className="hover:text-blue-400">Blog</a></li>
+                <li><a href="#" className="hover:text-blue-400">Guides</a></li>
+                <li><a href="#" className="hover:text-blue-400">Tutorials</a></li>
+              </ul>
+            </div>
+            {/* Company */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Company</h3>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#" className="hover:text-blue-400">About</a></li>
+              </ul>
+            </div>
+          </div>
+          {/* Copyright */}
+          <div className="border-t border-gray-800 mt-8 pt-6 text-center text-gray-400">
+            &copy; © 2025 Ms. Musk's English 9. All Rights Reserved.
+          </div>
+        </div>
       </footer>
     </div>
   );

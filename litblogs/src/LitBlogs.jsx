@@ -207,14 +207,14 @@ const LitBlogs = () => {
 
       {/* Toggle Dark Mode Button */}
       <motion.div
-        className="absolute top-32 right-4 z-10 transition-transform transform hover:scale-110"
+        className="absolute top-5 right-4 z-10 transition-transform transform hover:scale-110"
         whileHover={{ scale: 1.1 }}
       >
         <button
           onClick={toggleDarkMode}
-          className="bg-gray-800 text-white p-2.5 rounded-full shadow-lg transition-transform duration-300 hover:bg-gray-700"
+          className="bg-gray-800 text-white p-2 rounded-full shadow-lg"
         >
-          {darkMode ? "Light Mode" : "Dark Mode"}
+          {darkMode ? "🌞" : "🌙"}
         </button>
       </motion.div>
 
@@ -265,7 +265,7 @@ const LitBlogs = () => {
       </section>
 
       {/* Slider */}
-      <div className="flex items-center justify-center h-screen mb-10">
+      <div className="flex items-center justify-center">
         <motion.div
           className="slider-container relative w-[80%] md:w-[90%] max-w-[1200px] h-[600px] overflow-hidden rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 transition-all mx-auto"
           initial={{ opacity: 0 }}
@@ -341,7 +341,7 @@ const LitBlogs = () => {
 
       {/* Newsletter Section */}
       <motion.section
-        className={`py-20 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} text-${darkMode ? 'white' : 'gray-900'} rounded-3xl`}
+        className={`py-8 ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} text-${darkMode ? 'white' : 'gray-900'} rounded-3xl`}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}

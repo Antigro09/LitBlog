@@ -308,14 +308,14 @@ const Help = () => {
 
       {/* Toggle Dark Mode Button */}
       <motion.div
-        className="absolute top-32 right-4 z-10 transition-transform transform hover:scale-110"
+        className="absolute top-5 right-4 z-10 transition-transform transform hover:scale-110"
         whileHover={{ scale: 1.1 }}
       >
         <button
           onClick={toggleDarkMode}
-          className="bg-gray-800 text-white p-2.5 rounded-full shadow-lg transition-transform duration-300 hover:bg-gray-700"
+          className="bg-gray-800 text-white p-2 rounded-full shadow-lg"
         >
-          {darkMode ? "Light Mode" : "Dark Mode"}
+          {darkMode ? "🌞" : "🌙"}
         </button>
       </motion.div>
 
@@ -338,6 +338,11 @@ const Help = () => {
           Whether you're seeking writing tips, guidelines for submissions, or need assistance with the platform, we're here to support you!
         </motion.p>
         <motion.button
+          onClick={() => {
+            document.getElementById('target-section').scrollIntoView({
+              behavior: 'smooth',
+            });
+          }}
           className="bg-blue-600 text-white px-8 py-4 rounded-full text-lg flex items-center mx-auto shadow-lg"
           whileHover={{
             scale: 1.05,
@@ -525,6 +530,33 @@ const Help = () => {
           </div>
         </div>
       </section>
+      {/* Contact Us */}
+      <div className="mt-10 max-w-4xl mx-auto text-center px-4 sm:px-6" id="target-section">
+        <h2 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">
+          Contact us and we will be happy to help!
+        </h2>
+
+        <form className="space-y-6">
+          <div>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              onChange={(e) => setEmail(e.target.value)}
+              className={`w-full px-6 py-3 rounded-full ${darkMode ? 'bg-blue-700 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-800'} border focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-white`}
+              required
+            />
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              className="w-full py-3 rounded-full bg-blue-600 text-white font-semibold text-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+            >
+              Submit
+            </button>
+          </div>
+        </form>
+      </div>
       {/* Footer */}
       <footer className={`mt-12 transition-all duration-300 ${darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gradient-to-r from-gray-100 to-gray-100 text-gray-900'}`}>
         <div className="container mx-auto px-4 py-12">
