@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from a .env file if you use one
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost/LitBlogs")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

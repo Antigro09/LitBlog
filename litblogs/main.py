@@ -1,6 +1,7 @@
 # main.py
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from database import engine, get_db, Base
 import models, schemas
 from typing import List
@@ -83,6 +84,15 @@ def delete_blog(blog_id: int, db: Session = Depends(get_db)):
 @app.get("/")
 def home():
     return {"message": "Welcome to LitBlogs Backend"}
+
+@app.get("/test-db")
+def test_db(db: Session = Depends(get_db)):
+    try:
+        # Execute a simple query
+        result = db.execute(text("SELECT 1"))
+        return {"message": "Successfully connected to the database!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
