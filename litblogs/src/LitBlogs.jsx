@@ -313,6 +313,20 @@ const LitBlogs = () => {
       </div>
 
       {/* Teachers Section */}
+      <section className="bg-gray-100 dark:bg-gray-800 mt-20">
+          <motion.div
+            className="pt-12 text-4xl font-bold"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              scale: { type: "spring", stiffness: 500, damping: 50 },
+              opacity: { duration: 0.8, delay: 0.4 },
+              y: { duration: 0.8, delay: 0.4 }
+            }}
+          >
+            <div className="text-center">Meet the Supervisors</div>
+          </motion.div>
+  </section>
       <section className="p-10 bg-gray-100 dark:bg-gray-800">
         {[{ name: "Ms. Tambellini", img: "/images/tambellini.jpg", class: "10A CIT English" }, { name: "Ms. Musk", img: "/images/musk.jpg", class: "9A CIT English" }].map((teacher, index) => (
           <motion.div
