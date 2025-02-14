@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import './LitBlogs.css'; // Import any custom styles here
+import axios from 'axios';  // Make sure axios is installed: npm install axios
 
 const SignUp = () => {
+    const navigate = useNavigate();
     // State variables for form inputs
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
@@ -14,7 +16,8 @@ const SignUp = () => {
     const [errorMessage, setErrorMessage] = useState("");
     const dropdownRef = useRef(null);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
+    const [role, setRole] = useState('student');
+    const [classCode, setClassCode] = useState('');
 
     useEffect(() => {
       const handleClickOutside = (event) => {
@@ -60,7 +63,7 @@ const SignUp = () => {
   }, [darkMode]);
 
   // Form submission handler
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     // Simple validation
@@ -74,8 +77,41 @@ const SignUp = () => {
       return;
     }
 
-    setErrorMessage(""); // Clear error message on success
-    alert("Signed up successfully!");
+    try {
+      // Create username from email (you can modify this logic)
+      const username = email.split('@')[0];
+
+      // Create the user object matching your backend schema
+      const userData = {
+        username: username,
+        email: email,
+        password: password,
+        first_name: firstName,
+        last_name: lastName
+      };
+
+      // Make the API call to your backend
+      await axios.post('http://localhost:8000/api/auth/register', userData);
+
+      setErrorMessage(""); // Clear error message on success
+      // Navigate to role selection instead of specific dashboard
+      navigate('/role-selection');
+
+    } catch (error) {
+      // Handle different types of errors
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        setErrorMessage(error.response.data.detail || "Registration failed. Please try again.");
+      } else if (error.request) {
+        // The request was made but no response was received
+        setErrorMessage("No response from server. Please try again later.");
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setErrorMessage("An error occurred. Please try again.");
+      }
+      console.error("Registration error:", error);
+    }
   };
 
   return (
@@ -262,6 +298,33 @@ const SignUp = () => {
               required
             />
           </motion.div>
+
+          <motion.div className="mb-4">
+            <label htmlFor="role" className="block text-sm font-medium mb-2">Role</label>
+            <select
+              id="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className={`w-full p-4 border rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+            >
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+            </select>
+          </motion.div>
+
+          {role === 'student' && (
+            <motion.div className="mb-4">
+              <label htmlFor="classCode" className="block text-sm font-medium mb-2">Class Code</label>
+              <input
+                id="classCode"
+                type="text"
+                value={classCode}
+                onChange={(e) => setClassCode(e.target.value)}
+                placeholder="Enter class code"
+                className={`w-full p-4 border rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+              />
+            </motion.div>
+          )}
 
           {errorMessage && (
             <motion.p

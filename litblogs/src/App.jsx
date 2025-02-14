@@ -5,6 +5,9 @@ import Musk from "./Musk";
 import Help from "./Help";
 import SignIn from "./Sign-in";
 import SignUp from "./Sign-up";
+import TeacherDashboard from "./TeacherDashboard";
+import ClassFeed from "./ClassFeed";
+import RoleSelection from "./RoleSelection";
 
 function App() {
   return (
@@ -15,7 +18,11 @@ function App() {
         <Route path="/musk" element={<Musk />} />
         <Route path="/help" element={<Help />} />
         <Route path="/sign-in" element={<SignIn />} />
-        <Route path="/sign-up" element={ <SignUp />} />
+        <Route path="/sign-up" element={<SignUp />} />
+        <Route path="/role-selection" element={<RoleSelection />} />
+        <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
+        <Route path="/class-feed" element={<ClassFeed />} />
+        <Route path="/class/:classId" element={<ClassFeed />} />
       </Routes>
     </Router>
   );
