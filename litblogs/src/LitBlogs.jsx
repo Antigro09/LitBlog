@@ -84,7 +84,6 @@ const LitBlogs = () => {
       setNewsletterMessage("Please enter a valid email address.");
     }
   };
-
   return (
     <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
@@ -397,7 +396,6 @@ const LitBlogs = () => {
           )}
         </div>
       </motion.section>
-
       {/* Footer */}
       <footer className={`mt-12 transition-all duration-300 ${darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gradient-to-r from-gray-100 to-gray-100 text-gray-900'}`}>
         <div className="container mx-auto px-4 py-12">

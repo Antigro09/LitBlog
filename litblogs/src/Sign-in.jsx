@@ -54,11 +54,33 @@ const SignIn = () => {
     }
   }, [darkMode]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (email && password) {
       setErrorMessage("");
-      alert("Signed in successfully!");
+      try {
+        // POST the credentials to the backend API
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          setErrorMessage(errorData.detail || "Login failed");
+        } else {
+          const data = await response.json();
+          // If your API returns a token, you could store it (e.g., localStorage.setItem("token", data.token))
+          alert("Signed in successfully!");
+          // Optionally, redirect the user to a dashboard or another page
+        }
+      } catch (error) {
+        console.error("Error during sign in:", error);
+        setErrorMessage("An error occurred during sign in.");
+      }
     } else {
       setErrorMessage("Please enter both email and password.");
     }
@@ -224,8 +246,7 @@ const SignIn = () => {
 
         <div className="mt-6 text-center">
           <p className="text-sm">
-            Don't have an account?{" "}
-            <Link
+            Don't have an account?{" "}<Link
               to="/sign-up"
               className={`text-blue-500 hover:text-blue-700 transition duration-300 ${darkMode ? 'hover:text-blue-400' : 'hover:text-blue-600'}`}
             >
