@@ -16,8 +16,11 @@ const SignUp = () => {
     const [errorMessage, setErrorMessage] = useState("");
     const dropdownRef = useRef(null);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [role, setRole] = useState('student');
-    const [classCode, setClassCode] = useState('');
+    const [role, setRole] = useState('');
+    const [accessCode, setAccessCode] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [successData, setSuccessData] = useState(null);
 
     useEffect(() => {
       const handleClickOutside = (event) => {
@@ -66,9 +69,8 @@ const SignUp = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Simple validation
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      setErrorMessage("Please fill in all fields.");
+    if (!firstName || !lastName || !email || !password || !confirmPassword || !role) {
+      setErrorMessage("Please fill in all required fields.");
       return;
     }
 
@@ -77,40 +79,74 @@ const SignUp = () => {
       return;
     }
 
-    try {
-      // Create username from email (you can modify this logic)
-      const username = email.split('@')[0];
+    setIsLoading(true);
+    setErrorMessage("");
 
-      // Create the user object matching your backend schema
+    try {
+      const username = email.split('@')[0];
       const userData = {
         username: username,
         email: email,
         password: password,
         first_name: firstName,
-        last_name: lastName
+        last_name: lastName,
+        role: role,
+        access_code: accessCode
       };
 
-      // Make the API call to your backend
-      await axios.post('http://localhost:8000/api/auth/register', userData);
-
-      setErrorMessage(""); // Clear error message on success
-      // Navigate to role selection instead of specific dashboard
-      navigate('/role-selection');
-
-    } catch (error) {
-      // Handle different types of errors
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        setErrorMessage(error.response.data.detail || "Registration failed. Please try again.");
-      } else if (error.request) {
-        // The request was made but no response was received
-        setErrorMessage("No response from server. Please try again later.");
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        setErrorMessage("An error occurred. Please try again.");
+      console.log('Sending registration data:', userData);
+      const response = await axios.post('http://localhost:8000/api/auth/register', userData);
+      console.log('Registration response:', response.data);
+      
+      if (response.data.token) {
+        // Store auth token
+        localStorage.setItem('token', response.data.token);
+        
+        // Store user info
+        const userInfo = {
+          role: response.data.role,
+          userId: response.data.id,
+          username: response.data.username
+        };
+        localStorage.setItem('user_info', JSON.stringify(userInfo));
+        
+        // For students, store class info
+        if (response.data.role === 'STUDENT' && response.data.class_info) {
+          const classInfo = {
+            id: response.data.class_info.id,
+            name: response.data.class_info.name,
+            code: response.data.class_info.access_code
+          };
+          console.log('Storing class info:', classInfo);
+          localStorage.setItem('class_info', JSON.stringify(classInfo));
+        }
+        
+        setSuccessData({
+          role: response.data.role,
+          classInfo: response.data.class_info
+        });
+        console.log('Set success data:', {
+          role: response.data.role,
+          classInfo: response.data.class_info
+        });
+        
+        setShowSuccessModal(true);
       }
-      console.error("Registration error:", error);
+    } catch (error) {
+      console.error('Registration error:', error);
+      setErrorMessage(error.response?.data?.detail || "Registration failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleJoinClass = () => {
+    if (successData?.role === 'STUDENT' && successData?.classInfo) {
+      navigate(`/class-feed/${successData.classInfo.id}`);
+    } else if (successData?.role === 'TEACHER') {
+      navigate('/teacher-dashboard');
+    } else if (successData?.role === 'ADMIN') {
+      navigate('/admin-dashboard');
     }
   };
 
@@ -305,23 +341,38 @@ const SignUp = () => {
               id="role"
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className={`w-full p-4 border rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+              className={`w-full p-4 border rounded-lg ${
+                darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+              }`}
+              required
             >
-              <option value="student">Student</option>
-              <option value="teacher">Teacher</option>
+              <option value="">Select Role</option>
+              <option value="STUDENT">Student</option>
+              <option value="TEACHER">Teacher</option>
+              <option value="ADMIN">Admin</option>
             </select>
           </motion.div>
 
-          {role === 'student' && (
-            <motion.div className="mb-4">
-              <label htmlFor="classCode" className="block text-sm font-medium mb-2">Class Code</label>
+          {role && (
+            <motion.div 
+              className="mb-4"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+            >
+              <label htmlFor="accessCode" className="block text-sm font-medium mb-2">
+                {role === 'STUDENT' ? 'Class Code' : 
+                 role === 'TEACHER' ? 'Teacher Code' : 'Admin Code'}
+              </label>
               <input
-                id="classCode"
+                id="accessCode"
                 type="text"
-                value={classCode}
-                onChange={(e) => setClassCode(e.target.value)}
-                placeholder="Enter class code"
-                className={`w-full p-4 border rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
+                placeholder={`Enter ${role === 'STUDENT' ? 'class' : role.toLowerCase()} code`}
+                className={`w-full p-4 border rounded-lg ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+                required
               />
             </motion.div>
           )}
@@ -371,6 +422,86 @@ const SignUp = () => {
           {darkMode ? "🌞" : "🌙"}
         </button>
       </motion.div>
+
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              animate={{
+                rotate: 360,
+                transition: { duration: 1, repeat: Infinity, ease: "linear" }
+              }}
+              className={`w-16 h-16 border-4 border-t-transparent rounded-full ${
+                darkMode ? 'border-teal-500' : 'border-blue-500'
+              }`}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className={`${
+                darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'
+              } p-8 rounded-lg shadow-xl max-w-md w-full mx-4`}
+            >
+              <h2 className="text-2xl font-bold mb-4">Registration Successful!</h2>
+              <p className="mb-6">
+                {successData?.role === 'STUDENT'
+                  ? "You've been successfully registered as a student. Click below to join your class!"
+                  : successData?.role === 'TEACHER'
+                  ? "You've been successfully registered as a teacher. Click below to access your dashboard!"
+                  : "You've been successfully registered as an admin. Click below to access your dashboard!"}
+              </p>
+              {successData?.role === 'STUDENT' && successData?.classInfo ? (
+                <Link 
+                  to={`/class-feed/${successData.classInfo.id}`}
+                  className={`block w-full p-4 text-center text-white rounded-lg ${
+                    darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'
+                  } transition-colors duration-300`}
+                >
+                  Join {successData.classInfo.name || 'Class'}
+                </Link>
+              ) : successData?.role === 'TEACHER' ? (
+                <Link 
+                  to="/teacher-dashboard"
+                  className={`block w-full p-4 text-center text-white rounded-lg ${
+                    darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'
+                  } transition-colors duration-300`}
+                >
+                  Go to Teacher Dashboard
+                </Link>
+              ) : (
+                <Link 
+                  to="/admin-dashboard"
+                  className={`block w-full p-4 text-center text-white rounded-lg ${
+                    darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'
+                  } transition-colors duration-300`}
+                >
+                  Go to Admin Dashboard
+                </Link>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

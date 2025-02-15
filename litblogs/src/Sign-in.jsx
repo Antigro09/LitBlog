@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import './LitBlogs.css'; // Import any custom styles here
+import axios from 'axios';
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -10,6 +11,7 @@ const SignIn = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const dropdownRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -56,33 +58,34 @@ const SignIn = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (email && password) {
-      setErrorMessage("");
-      try {
-        // POST the credentials to the backend API
-        const response = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        });
+    setErrorMessage("");
+    
+    try {
+      const response = await axios.post('http://localhost:8000/api/auth/login', {
+        email,
+        password
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          setErrorMessage(errorData.detail || "Login failed");
+      // Store the token
+      localStorage.setItem('token', response.data.access_token);
+      
+      // Redirect based on role and class info
+      const role = response.data.role;
+      
+      if (role === 'STUDENT') {
+        if (response.data.class_info) {
+          // Navigate to specific class feed
+          navigate(`/class-feed/${response.data.class_info.id}`);
         } else {
-          const data = await response.json();
-          // If your API returns a token, you could store it (e.g., localStorage.setItem("token", data.token))
-          alert("Signed in successfully!");
-          // Optionally, redirect the user to a dashboard or another page
+          setErrorMessage("No class enrollment found. Please contact your teacher.");
         }
-      } catch (error) {
-        console.error("Error during sign in:", error);
-        setErrorMessage("An error occurred during sign in.");
+      } else if (role === 'TEACHER') {
+        navigate('/teacher-dashboard');
+      } else if (role === 'ADMIN') {
+        navigate('/admin-dashboard');
       }
-    } else {
-      setErrorMessage("Please enter both email and password.");
+    } catch (error) {
+      setErrorMessage(error.response?.data?.detail || "Login failed");
     }
   };
 

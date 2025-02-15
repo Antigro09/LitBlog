@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
+from pydantic import validator
 
 # Blog schemas
 class BlogBase(BaseModel):
@@ -34,16 +35,30 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    role: UserRole = UserRole.STUDENT
-    class_code: Optional[str] = None  # For students joining a class
+    role: str  # Will receive "STUDENT", "TEACHER", or "ADMIN"
+    access_code: str | None = None
+
+    @validator('role')
+    def validate_role(cls, v):
+        if v not in ["STUDENT", "TEACHER", "ADMIN"]:
+            raise ValueError('Invalid role')
+        return v
+
+class ClassInfo(BaseModel):
+    id: int
+    name: str
+    access_code: str
 
 class UserResponse(UserBase):
     id: int
-    role: UserRole
+    role: str
+    is_admin: bool = False
     created_at: datetime
+    token: str | None = None
+    class_info: ClassInfo | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ClassBase(BaseModel):
     name: str

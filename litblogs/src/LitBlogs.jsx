@@ -328,7 +328,7 @@ const LitBlogs = () => {
           </motion.div>
   </section>
       <section className="p-10 bg-gray-100 dark:bg-gray-800">
-        {[{ name: "Ms. Tambellini", img: "public/tambellini.jpg", class: "10A CIT English" }, { name: "Ms. Musk", img: "public/tambellini.jpg", class: "9A CIT English" }].map((teacher, index) => (
+        {[{ name: "Ms. Tambellini", img: "/tambellini.jpg", class: "10A CIT English" }, { name: "Ms. Musk", img: "/musk.jpg", class: "9A CIT English" }].map((teacher, index) => (
           <motion.div
             key={index}
             className="flex flex-col md:flex-row items-center gap-8 mb-12 bg-white dark:bg-gray-900 p-6 rounded-xl shadow-lg"

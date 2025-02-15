@@ -1,13 +1,14 @@
 # models.py
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, Enum as SQLAlchemyEnum, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
-import enum
+from enum import Enum
+from datetime import datetime
 
-class UserRole(enum.Enum):
-    STUDENT = "student"
-    TEACHER = "teacher"
-    ADMIN = "admin"
+class UserRole(str, Enum):
+    STUDENT = "STUDENT"
+    TEACHER = "TEACHER"
+    ADMIN = "ADMIN"
 
 class User(Base):
     __tablename__ = "users"
@@ -17,7 +18,8 @@ class User(Base):
     password = Column(String(255), nullable=False)
     first_name = Column(String(50))
     last_name = Column(String(50))
-    role = Column(Enum(UserRole), nullable=False, default=UserRole.STUDENT)
+    role = Column(SQLAlchemyEnum(UserRole), nullable=False, default=UserRole.STUDENT)
+    is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # For students: the classes they're enrolled in
     enrolled_classes = relationship("ClassEnrollment", back_populates="student")
@@ -29,7 +31,7 @@ class Class(Base):
     __tablename__ = "classes"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    description = Column(Text)
+    description = Column(Text, nullable=True)
     access_code = Column(String(6), unique=True, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)

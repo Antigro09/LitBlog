@@ -8,6 +8,7 @@ import SignUp from "./Sign-up";
 import TeacherDashboard from "./TeacherDashboard";
 import ClassFeed from "./ClassFeed";
 import RoleSelection from "./RoleSelection";
+import AdminDashboard from "./AdminDashboard";
 
 function App() {
   return (
@@ -22,7 +23,8 @@ function App() {
         <Route path="/role-selection" element={<RoleSelection />} />
         <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
         <Route path="/class-feed" element={<ClassFeed />} />
-        <Route path="/class/:classId" element={<ClassFeed />} />
+        <Route path="/class-feed/:classId" element={<ClassFeed />} />
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
       </Routes>
     </Router>
   );
