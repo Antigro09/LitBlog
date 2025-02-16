@@ -73,12 +73,7 @@ const SignIn = () => {
       const role = response.data.role;
       
       if (role === 'STUDENT') {
-        if (response.data.class_info) {
-          // Navigate to specific class feed
-          navigate(`/class-feed/${response.data.class_info.id}`);
-        } else {
-          setErrorMessage("No class enrollment found. Please contact your teacher.");
-        }
+        navigate('/student-hub');
       } else if (role === 'TEACHER') {
         navigate('/teacher-dashboard');
       } else if (role === 'ADMIN') {

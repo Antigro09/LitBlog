@@ -224,7 +224,7 @@ const SignUp = () => {
         </div>
       </motion.nav>
       <motion.div
-        className="max-w-md w-full p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 mt-16"
+        className="max-w-md w-full p-8 mb-16 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 mt-16"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
@@ -353,28 +353,22 @@ const SignUp = () => {
             </select>
           </motion.div>
 
-          {role && (
-            <motion.div 
-              className="mb-4"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-            >
-              <label htmlFor="accessCode" className="block text-sm font-medium mb-2">
-                {role === 'STUDENT' ? 'Class Code' : 
-                 role === 'TEACHER' ? 'Teacher Code' : 'Admin Code'}
-              </label>
+          {(role === 'TEACHER' || role === 'ADMIN') && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Access Code</label>
               <input
-                id="accessCode"
                 type="text"
                 value={accessCode}
                 onChange={(e) => setAccessCode(e.target.value)}
-                placeholder={`Enter ${role === 'STUDENT' ? 'class' : role.toLowerCase()} code`}
-                className={`w-full p-4 border rounded-lg ${
-                  darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                className={`w-full p-3 rounded-lg border ${
+                  darkMode 
+                    ? 'bg-gray-700 border-gray-600 text-white' 
+                    : 'bg-white border-gray-300'
                 }`}
+                placeholder={`Enter ${role.toLowerCase()} access code`}
                 required
               />
-            </motion.div>
+            </div>
           )}
 
           {errorMessage && (
@@ -390,7 +384,7 @@ const SignUp = () => {
 
           <motion.button
             type="submit"
-            className={`w-full p-4 text-white rounded-lg text-lg focus:outline-none ${darkMode ? 'bg-teal-700 hover:bg-teal-600' : 'bg-blue-600 hover:bg-blue-700'} transition-colors duration-300`}
+            className={`w-full p-4 mt-6 text-white rounded-lg text-lg focus:outline-none ${darkMode ? 'bg-teal-700 hover:bg-teal-600' : 'bg-blue-600 hover:bg-blue-700'} transition-colors duration-300`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -465,19 +459,19 @@ const SignUp = () => {
               <h2 className="text-2xl font-bold mb-4">Registration Successful!</h2>
               <p className="mb-6">
                 {successData?.role === 'STUDENT'
-                  ? "You've been successfully registered as a student. Click below to join your class!"
+                  ? "You've been successfully registered as a student. Click below to go to your class hub!"
                   : successData?.role === 'TEACHER'
                   ? "You've been successfully registered as a teacher. Click below to access your dashboard!"
                   : "You've been successfully registered as an admin. Click below to access your dashboard!"}
               </p>
-              {successData?.role === 'STUDENT' && successData?.classInfo ? (
+              {successData?.role === 'STUDENT' ? (
                 <Link 
-                  to={`/class-feed/${successData.classInfo.id}`}
+                  to="/student-hub"
                   className={`block w-full p-4 text-center text-white rounded-lg ${
                     darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'
                   } transition-colors duration-300`}
                 >
-                  Join {successData.classInfo.name || 'Class'}
+                  Go to Student Hub
                 </Link>
               ) : successData?.role === 'TEACHER' ? (
                 <Link 

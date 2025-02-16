@@ -10,16 +10,20 @@ class BlogBase(BaseModel):
     title: str
     content: str
 
-class BlogCreate(BlogBase):
-    pass
+class BlogCreate(BaseModel):
+    title: str
+    content: str
 
-class BlogResponse(BlogBase):
+class BlogResponse(BaseModel):
     id: int
+    title: str
+    content: str
     created_at: datetime
     owner_id: int
+    class_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # User schemas
 class UserRole(str, Enum):
@@ -33,9 +37,13 @@ class UserBase(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
     password: str
-    role: str  # Will receive "STUDENT", "TEACHER", or "ADMIN"
+    first_name: str | None = None
+    last_name: str | None = None
+    role: str
     access_code: str | None = None
 
     @validator('role')
@@ -73,5 +81,20 @@ class ClassResponse(ClassBase):
     teacher_id: int
     created_at: datetime
 
+    class Config:
+        orm_mode = True
+
+class TeacherBase(BaseModel):
+    id: int
+    name: str
+    email: str
+    classes: List[ClassBase]
+
+class TeacherCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+
+class Teacher(TeacherBase):
     class Config:
         orm_mode = True
