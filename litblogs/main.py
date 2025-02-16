@@ -1,5 +1,5 @@
 # main.py
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import engine, get_db, Base
@@ -13,6 +13,8 @@ import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
+import shutil
+from pathlib import Path
 
 app = FastAPI()
 
@@ -380,6 +382,44 @@ async def get_classes(
 async def debug_classes(db: Session = Depends(get_db)):
     classes = db.query(models.Class).all()
     return [{"id": c.id, "name": c.name, "access_code": c.access_code} for c in classes]
+
+# Create upload directories if they don't exist
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+(UPLOAD_DIR / "images").mkdir(exist_ok=True)
+(UPLOAD_DIR / "videos").mkdir(exist_ok=True)
+(UPLOAD_DIR / "files").mkdir(exist_ok=True)
+
+# Add these new endpoints
+@app.post("/api/upload/image")
+async def upload_image(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+    try:
+        file_path = UPLOAD_DIR / "images" / file.filename
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return {"url": f"/uploads/images/{file.filename}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/upload/video")
+async def upload_video(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+    try:
+        file_path = UPLOAD_DIR / "videos" / file.filename
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return {"url": f"/uploads/videos/{file.filename}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/upload/file")
+async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+    try:
+        file_path = UPLOAD_DIR / "files" / file.filename
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return {"url": f"/uploads/files/{file.filename}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
