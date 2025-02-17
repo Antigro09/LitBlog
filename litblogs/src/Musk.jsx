@@ -7,7 +7,7 @@ const Musk = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null); // Track selected class (3, 5, or 7)
   const [classPosts, setClassPosts] = useState([]); // Posts for the selected class
-  const dropdownRef = useRef(null);
+   const dropdownRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Mock data for posts (you can replace this with actual data from an API)

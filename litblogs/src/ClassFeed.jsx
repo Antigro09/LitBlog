@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from 'axios';
 import EmojiPicker from 'emoji-picker-react';
-import { GiphyFetch } from '@giphy/js-fetch-api';
+import { GiphyFetch } from go'@giphy/js-fetch-api';
 import { Grid as GiphyGrid, SearchBar, SearchContext, SearchContextManager } from '@giphy/react-components';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';  // Dark theme
