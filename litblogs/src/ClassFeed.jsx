@@ -16,7 +16,6 @@ import 'prismjs/components/prism-markup'; // For HTML
 import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-sql';
 
-// Add this before the ClassFeed component
 const expandableListStyles = `
   .expandable-list {
     margin: 8px 0;
@@ -200,14 +199,71 @@ const codeStyles = `
   }
 `;
 
+const glassStyles = `
+  .glass-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+  }
+
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .dark .glass-card {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .dark .glass-card:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite linear;
+  }
+`;
+
 // Add this after your imports
 Prism.manual = true;
+
+const MOCK_POSTS = [
+  {
+    id: 1,
+    author: "Sritha Kankanala",
+    title: "Cow Blog Post: Gene Editing",
+    content: "What is gene editing exactly? In simple terms, gene editing is a technology that lets scientists make precise changes to the DNA inside living organisms. DNA is like the instruction manual for every living thing—it tells organisms how to develop and function.",
+    isNew: true,
+    likes: 1,
+    comments: 0,
+    timestamp: "1d"
+  },
+  // ... other mock posts
+];
 
 const ClassFeed = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
-  const [classData, setClassData] = useState(null);
-  const [posts, setPosts] = useState([]);
+  const [classDetails, setClassDetails] = useState(null);
+  const [posts, setPosts] = useState(MOCK_POSTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [darkMode, setDarkMode] = useState(() => {
@@ -237,40 +293,31 @@ const ClassFeed = () => {
   const gf = new GiphyFetch('FEzk8anVjSKZIiInlJWd4Jo4OuYBjV9B');
 
   useEffect(() => {
-    const loadClassFeed = async () => {
+    const fetchData = async () => {
       try {
-        const storedClassInfo = JSON.parse(localStorage.getItem('class_info'));
-        if (storedClassInfo) {
-          setClassData(storedClassInfo);
-        }
-        
         const token = localStorage.getItem('token');
-        if (!token) {
-          navigate('/sign-in');
-          return;
-        }
-
+        
+        // Fetch class details
         const classResponse = await axios.get(`http://localhost:8000/api/classes/${classId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setClassData(classResponse.data);
+        setClassDetails(classResponse.data);
 
+        // Fetch posts for this class
         const postsResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setPosts(postsResponse.data);
+
         setLoading(false);
       } catch (error) {
-        if (error.response?.status === 403) {
-          navigate('/sign-in');
-        }
-        setError(error.response?.data?.detail || 'Failed to load class data');
+        setError('Failed to load class data');
         setLoading(false);
       }
     };
-    
-    loadClassFeed();
-  }, [classId, navigate]);
+
+    fetchData();
+  }, [classId]);
 
   useEffect(() => {
     if (darkMode) {
@@ -289,43 +336,29 @@ const ClassFeed = () => {
     }
   }, [postContent.codeSnippets]);
 
-  const handleCreatePost = async (e) => {
+  const createPost = async (e) => {
     e.preventDefault();
     try {
-      // Format the content with code snippets
-      const formattedContent = `
-        ${postContent.text}
-        ${postContent.codeSnippets.map(snippet => `
-          <div class="code-snippet">
-            <div class="code-header">
-              <span class="language">${snippet.language}</span>
-            </div>
-            <pre><code class="${snippet.language}">
-              ${snippet.code}
-            </code></pre>
-          </div>
-        `).join('\n')}
-      `;
-
       const token = localStorage.getItem('token');
-      const response = await axios.post(
-        `http://localhost:8000/api/classes/${classId}/posts`,
+      const response = await axios.post(`http://localhost:8000/api/classes/${classId}/posts`, 
         {
           title: postTitle,
-          content: formattedContent,
-          media: postContent.media,
-          category: postCategory,
-          codeSnippets: postContent.codeSnippets
+          content: postContent.text,
         },
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
-      setPosts([response.data, ...posts]);
+
+      setPosts(prev => [response.data, ...prev]);
       setShowNewPostForm(false);
-      setPostContent({ text: "", media: [], expandableLists: [], codeSnippets: [] });
       setPostTitle("");
-      setPostCategory("");
+      setPostContent({
+        text: "",
+        media: [],
+        expandableLists: [],
+        codeSnippets: []
+      });
     } catch (error) {
       console.error('Error creating post:', error);
     }
@@ -498,9 +531,8 @@ const ClassFeed = () => {
   };
 
   useEffect(() => {
-    // Add the styles to the document
     const styleSheet = document.createElement("style");
-    styleSheet.innerText = expandableListStyles + codeStyles;
+    styleSheet.innerText = expandableListStyles + codeStyles + glassStyles;
     document.head.appendChild(styleSheet);
 
     // Add click handler for expandable lists
@@ -540,13 +572,11 @@ const ClassFeed = () => {
   }
 
   return (
-    <div className={`min-h-screen ${
-      darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-white' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'
-    }`}>
+    <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Centered Navbar */}
-      <div className="fixed top-0 left-0 right-0 flex justify-center z-50 p-4">
+      <div className="fixed top-4 left-0 right-0 flex justify-center z-50">
         <motion.nav 
-          className="navbar w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50"
+          className={`navbar w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50`}
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
@@ -646,75 +676,149 @@ const ClassFeed = () => {
         </motion.nav>
       </div>
 
-      {/* Main Content - Fixed container width and padding */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8">
-        {classData ? (
-          <div className="space-y-6">
-            <motion.h1 
-              className="text-4xl font-bold mb-6"
-              initial={{ opacity: 0, y: 20 }}
+      {/* Add the new blog navigation below the main navbar */}
+      <div className={`border-b backdrop-blur-md bg-white/30 dark:bg-gray-800/30 ${
+        darkMode ? 'border-gray-700' : 'border-gray-200'
+      } mt-16 transition-all duration-300`}>
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <motion.div 
+              className="flex space-x-8"
+              initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
             >
-              {classData.name}
-            </motion.h1>
-            
-            {/* New Post Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowNewPostForm(true)}
-              className={`mb-6 px-6 py-3 rounded-lg ${
-                darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'
-              } text-white font-semibold shadow-lg flex items-center justify-center gap-2`}
-            >
-              <svg 
-                className="w-5 h-5" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
+              <motion.span 
+                className="font-medium cursor-pointer hover:text-blue-500 transition-colors duration-300"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M12 4v16m8-8H4" 
-                />
-              </svg>
-              Create New Post
-            </motion.button>
-            
-            {/* Posts Grid */}
-            <div className="grid gap-6">
-              {posts.map((post, index) => (
-                <motion.div 
-                  key={post.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className={`p-6 rounded-lg shadow-lg ${
-                    darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'
-                  } transition-colors duration-300`}
-                >
-                  <h2 className="text-xl font-semibold mb-4">{post.title}</h2>
-                  <div 
-                    className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}
-                    dangerouslySetInnerHTML={{ 
-                      __html: post.content.replace(/\n/g, '<br>')
-                    }}
-                  />
-                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Posted by {post.author} on {new Date(post.created_at).toLocaleDateString()}
-                  </div>
-                </motion.div>
-              ))}
+                Categories
+              </motion.span>
+              <motion.span 
+                className="font-medium cursor-pointer hover:text-blue-500 transition-colors duration-300"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                All Posts
+              </motion.span>
+              <motion.span 
+                className="font-medium cursor-pointer hover:text-blue-500 transition-colors duration-300"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                My Posts
+              </motion.span>
+            </motion.div>
+            <motion.div 
+              className="flex items-center space-x-4"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <input
+                type="search"
+                placeholder="Search"
+                className={`rounded-lg px-4 py-2 ${
+                  darkMode 
+                    ? 'bg-gray-800/50 border-gray-700' 
+                    : 'bg-white/50 border-gray-300'
+                } border backdrop-blur-sm transition-all duration-300 focus:ring-2 focus:ring-blue-500 hover:bg-opacity-70`}
+              />
+            </motion.div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-6 mt-4">
+        {/* Blog Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-xl font-medium">COW Blogs</h1>
+            <div className="flex items-center space-x-2">
+              <span>Sort by:</span>
+              <select className={`rounded-lg px-3 py-1 ${
+                darkMode 
+                  ? 'bg-gray-800 border-gray-700' 
+                  : 'bg-white border-gray-300'
+                } border`}
+              >
+                <option>Recent Activity</option>
+              </select>
             </div>
           </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-xl">Loading class data...</p>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => setShowNewPostForm(false)}
+              className={`px-4 py-2 rounded-lg ${
+                darkMode ? 'bg-gray-800' : 'bg-white'
+              } border border-gray-300 dark:border-gray-700`}
+            >
+              More Actions
+            </button>
+            <motion.button 
+              onClick={() => setShowNewPostForm(true)}
+              className={`px-4 py-2 rounded-lg text-white ${
+                darkMode 
+                  ? 'bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500' 
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
+              } transition-all duration-300 shadow-lg hover:shadow-xl`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Create New Post
+            </motion.button>
           </div>
-        )}
+        </div>
+
+        {/* Posts Feed */}
+        <div className="max-w-4xl mx-auto pt-32 px-4">
+          <div className="space-y-6">
+            {posts.map((post) => (
+              <motion.div
+                key={post.id}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
+              >
+                <div className="p-6">
+                  {/* Author Info */}
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+                      {post.author?.first_name?.[0] || '?'}
+                    </div>
+                    <div>
+                      <h3 className="font-medium dark:text-white">
+                        {post.author ? `${post.author.first_name} ${post.author.last_name}` : 'Unknown Author'}
+                      </h3>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {new Date(post.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Post Title and Preview */}
+                  <h2 className="text-xl font-semibold mb-2 dark:text-white">{post.title}</h2>
+                  <p className="text-gray-600 dark:text-gray-300 line-clamp-3">{post.content}</p>
+
+                  {/* Post Stats */}
+                  <div className="mt-4 flex items-center space-x-4 text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center space-x-1">
+                      <span>👍</span>
+                      <span>0</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span>💬</span>
+                      <span>0</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* New Post Modal */}
@@ -755,7 +859,7 @@ const ClassFeed = () => {
                 </span>
               </div>
 
-              <form onSubmit={handleCreatePost} className="space-y-4">
+              <form onSubmit={createPost} className="space-y-4">
                 {/* Category Dropdown */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -1,533 +1,387 @@
 import { useState, useEffect } from 'react';
-
-// Mock database using localStorage
-const mockDB = {
-  classes: JSON.parse(localStorage.getItem('classes')) || [],
-  students: JSON.parse(localStorage.getItem('students')) || [],
-  blogs: JSON.parse(localStorage.getItem('blogs')) || [],
-  analytics: JSON.parse(localStorage.getItem('analytics')) || {
-    totalBlogs: 0,
-    approvedBlogs: 0,
-    flaggedBlogs: 0,
-    studentActivity: {}
-  }
-};
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
 
 const TeacherDashboard = () => {
-  // State Management
-  const [darkMode, setDarkMode] = useState(false);
+  const navigate = useNavigate();
+  const [darkMode, setDarkMode] = useState(() => {
+    return JSON.parse(localStorage.getItem('darkMode')) ?? false;
+  });
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [showClassForm, setShowClassForm] = useState(false);
-  const [newClass, setNewClass] = useState({ name: '', description: '', joinCode: '' });
-  const [selectedBlogs, setSelectedBlogs] = useState([]);
-  
-  // Data States
-  const [classes, setClasses] = useState(mockDB.classes);
-  const [students, setStudents] = useState(mockDB.students);
-  const [blogs, setBlogs] = useState(mockDB.blogs);
-  const [analytics, setAnalytics] = useState(mockDB.analytics);
+  const [newClass, setNewClass] = useState({ name: '', description: '' });
+  const [teacherData, setTeacherData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Persist data to localStorage
   useEffect(() => {
-    localStorage.setItem('classes', JSON.stringify(classes));
-    localStorage.setItem('students', JSON.stringify(students));
-    localStorage.setItem('blogs', JSON.stringify(blogs));
-    localStorage.setItem('analytics', JSON.stringify(analytics));
-  }, [classes, students, blogs, analytics]);
+    const fetchTeacherData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/sign-in');
+          return;
+        }
 
-  // Dark Mode Toggle
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-  }, [darkMode]);
+        const response = await axios.get('http://localhost:8000/api/teacher/dashboard', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-  // Class Creation
-  const createClass = () => {
-    if (!newClass.name || !newClass.joinCode) {
-      alert('Please fill all required fields');
-      return;
-    }
-    
-    if (classes.some(c => c.joinCode === newClass.joinCode)) {
-      alert('Join code must be unique!');
-      return;
-    }
-
-    setClasses([...classes, { ...newClass, students: [] }]);
-    setShowClassForm(false);
-    setNewClass({ name: '', description: '', joinCode: '' });
-  };
-
-  // Blog Management
-  const updateBlogStatus = (id, status) => {
-    const updatedBlogs = blogs.map(blog => 
-      blog.id === id ? { ...blog, status, flagged: status === 'Rejected' } : blog
-    );
-    setBlogs(updatedBlogs);
-    updateAnalytics(updatedBlogs);
-  };
-
-  const bulkUpdateBlogs = (status) => {
-    const updatedBlogs = blogs.map(blog => 
-      selectedBlogs.includes(blog.id) ? { ...blog, status, flagged: status === 'Rejected' } : blog
-    );
-    setBlogs(updatedBlogs);
-    setSelectedBlogs([]);
-    updateAnalytics(updatedBlogs);
-  };
-
-  // Analytics Updates
-  const updateAnalytics = (blogs) => {
-    const newAnalytics = {
-      totalBlogs: blogs.length,
-      approvedBlogs: blogs.filter(b => b.status === 'Approved').length,
-      flaggedBlogs: blogs.filter(b => b.flagged).length,
-      studentActivity: students.reduce((acc, student) => ({
-        ...acc,
-        [student.id]: blogs.filter(b => b.authorId === student.id).length
-      }), {})
+        console.log('Teacher Data:', response.data);
+        console.log('Classes:', response.data.classes);
+        setTeacherData(response.data);
+        setLoading(false);
+      } catch (error) {
+        setError('Failed to load teacher data');
+        setLoading(false);
+        if (error.response?.status === 401) {
+          navigate('/sign-in');
+        }
+      }
     };
-    setAnalytics(newAnalytics);
+
+    fetchTeacherData();
+  }, [navigate]);
+
+  // Stats for the dashboard
+  const stats = [
+    {
+      title: "Total Classes",
+      value: teacherData?.classes?.length || 0,
+      color: "from-blue-600 to-indigo-600",
+      icon: "📚"
+    },
+    {
+      title: "Total Students",
+      value: teacherData?.classes?.reduce((acc, cls) => 
+        acc + (cls.students?.length || 0), 0
+      ) || 0,
+      color: "from-emerald-500 to-teal-500",
+      icon: "👥"
+    },
+    {
+      title: "Active Today",
+      value: "85%",
+      color: "from-purple-600 to-pink-600",
+      icon: "📊"
+    },
+    {
+      title: "Average Engagement",
+      value: "92%",
+      color: "from-orange-500 to-yellow-500",
+      icon: "⭐"
+    }
+  ];
+
+  const createClass = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('http://localhost:8000/api/classes', newClass, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setTeacherData(prev => ({
+        ...prev,
+        classes: [...prev.classes, response.data]
+      }));
+      
+      setShowClassForm(false);
+      setNewClass({ name: '', description: '' });
+    } catch (error) {
+      console.error('Error creating class:', error);
+    }
   };
 
-  // Student Management
-  const addStudent = (student) => {
-    const newStudent = { ...student, id: students.length + 1 };
-    setStudents(prev => [...prev, newStudent]);
-    
-    setClasses(prevClasses => 
-      prevClasses.map(c => 
-        c.joinCode === student.joinCode 
-          ? { ...c, students: [...c.students, newStudent.id] }
-          : c
-      )
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-slate-800 to-gray-950">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
     );
-  };
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-slate-800 to-gray-950">
+        <div className="text-red-500 text-xl">Error: {error}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`min-h-screen flex ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
-
+    <div className={`min-h-screen transition-all duration-500 ${
+      darkMode 
+        ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' 
+        : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'
+    }`}>
       {/* Sidebar */}
-      <div className={`w-64 p-4 fixed h-full ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
-        <h2 className="text-xl font-bold mb-8">Teacher Portal</h2>
-        {['Dashboard', 'Manage Blogs', 'Manage Students', 'Analytics', 'Settings'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`w-full text-left p-3 mb-2 rounded-lg transition-all ${
-              activeTab === tab ? (darkMode ? 'bg-teal-600' : 'bg-blue-600 text-white') : 
-              'hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
+      <motion.div 
+        initial={{ x: -300 }}
+        animate={{ x: 0 }}
+        className="fixed left-0 top-0 h-full w-64 backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border-r border-white/10 dark:border-gray-700/10"
+      >
+        <div className="p-6">
+          <motion.h2 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-xl font-bold mb-8"
           >
-            {tab}
-          </button>
-        ))}
-      </div>
+            Welcome, {teacherData?.name}
+          </motion.h2>
+          
+          {/* Navigation Items */}
+          <nav className="space-y-2">
+            {['Dashboard', 'Classes', 'Students', 'Analytics'].map((tab) => (
+              <motion.button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`w-full text-left p-3 rounded-lg transition-all ${
+                  activeTab === tab 
+                    ? 'bg-blue-500/20 text-blue-500' 
+                    : 'hover:bg-white/5'
+                }`}
+                whileHover={{ x: 5 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {tab}
+              </motion.button>
+            ))}
+          </nav>
+        </div>
+      </motion.div>
 
       {/* Main Content */}
-      <div className="ml-64 flex-1 p-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">{activeTab}</h1>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
-          >
-            {darkMode ? "🌞 Light" : "🌙 Dark"}
-          </button>
-        </div>
-
-        {activeTab === 'Dashboard' && (
-          <Dashboard 
-            darkMode={darkMode}
-            classes={classes}
-            blogs={blogs}
-            showClassForm={showClassForm}
-            setShowClassForm={setShowClassForm}
-            newClass={newClass}
-            setNewClass={setNewClass}
-            createClass={createClass}
-          />
-        )}
-
-        {activeTab === 'Manage Blogs' && (
-          <BlogManagement
-            darkMode={darkMode}
-            blogs={blogs}
-            selectedBlogs={selectedBlogs}
-            setSelectedBlogs={setSelectedBlogs}
-            updateBlogStatus={updateBlogStatus}
-            bulkUpdateBlogs={bulkUpdateBlogs}
-          />
-        )}
-
-        {activeTab === 'Manage Students' && (
-          <StudentManagement
-            darkMode={darkMode}
-            students={students}
-            classes={classes}
-            addStudent={addStudent}
-          />
-        )}
-
-        {activeTab === 'Analytics' && <Analytics darkMode={darkMode} analytics={analytics} students={students} />}
-        
-        {activeTab === 'Settings' && <Settings darkMode={darkMode} setDarkMode={setDarkMode} />}
-      </div>
-    </div>
-  );
-};
-
-// Dashboard Component
-const Dashboard = ({ darkMode, classes, blogs, showClassForm, setShowClassForm, newClass, setNewClass, createClass }) => (
-  <div className="space-y-8">
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <StatCard title="Classes" value={classes.length} color="bg-purple-500" />
-      <StatCard title="Students" value={classes.reduce((acc, c) => acc + c.students.length, 0)} color="bg-green-500" />
-      <StatCard title="Pending Blogs" value={blogs.filter(b => b.status === 'Pending').length} color="bg-yellow-500" />
-      <StatCard title="Flagged Content" value={blogs.filter(b => b.flagged).length} color="bg-red-500" />
-    </div>
-
-    <div className="flex justify-between items-center">
-      <h2 className="text-xl font-bold">Classes</h2>
-      <button
-        onClick={() => setShowClassForm(true)}
-        className={`px-4 py-2 rounded ${darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
-      >
-        Create New Class
-      </button>
-    </div>
-
-    {showClassForm && (
-      <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow animate-fadeIn`}>
-        <h3 className="text-lg font-bold mb-4">Create New Class</h3>
-        <input
-          type="text"
-          placeholder="Class Name *"
-          value={newClass.name}
-          onChange={(e) => setNewClass({...newClass, name: e.target.value})}
-          className={`w-full p-2 mb-4 rounded border ${darkMode ? 'bg-gray-700 border-gray-600' : 'border-gray-300'}`}
-        />
-        <input
-          type="text"
-          placeholder="Join Code *"
-          value={newClass.joinCode}
-          onChange={(e) => setNewClass({...newClass, joinCode: e.target.value})}
-          className={`w-full p-2 mb-4 rounded border ${darkMode ? 'bg-gray-700 border-gray-600' : 'border-gray-300'}`}
-        />
-        <textarea
-          placeholder="Description"
-          value={newClass.description}
-          onChange={(e) => setNewClass({...newClass, description: e.target.value})}
-          className={`w-full p-2 mb-4 rounded border ${darkMode ? 'bg-gray-700 border-gray-600' : 'border-gray-300'}`}
-        />
-        <div className="flex justify-end gap-4">
-          <button
-            onClick={() => setShowClassForm(false)}
-            className="px-4 py-2 rounded bg-gray-500 text-white hover:bg-gray-600"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={createClass}
-            className={`px-4 py-2 rounded ${darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
-          >
-            Create
-          </button>
-        </div>
-      </div>
-    )}
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {classes.map((classObj) => (
-        <div key={classObj.joinCode} className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-          <h3 className="text-lg font-bold">{classObj.name}</h3>
-          <p className="text-gray-500">{classObj.description}</p>
-          <div className="mt-2">
-            <span className="text-sm">Join Code: {classObj.joinCode}</span>
-            <span className="ml-4 text-sm">Students: {classObj.students.length}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-// Blog Management Component
-const BlogManagement = ({ darkMode, blogs, selectedBlogs, setSelectedBlogs, updateBlogStatus, bulkUpdateBlogs }) => {
-  const toggleSelect = (id) => {
-    setSelectedBlogs(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
-  };
-
-  return (
-    <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-      <div className="flex justify-between mb-4">
-        <h2 className="text-xl font-bold">Blog Management</h2>
-        <div className="space-x-2">
-          <button 
-            onClick={() => bulkUpdateBlogs('Approved')} 
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-          >
-            Approve Selected
-          </button>
-          <button 
-            onClick={() => bulkUpdateBlogs('Rejected')} 
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
-            Reject Selected
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-            <tr>
-              <th className="p-3 text-left">Select</th>
-              <th className="p-3 text-left">Title</th>
-              <th className="p-3 text-left">Author</th>
-              <th className="p-3 text-left">Status</th>
-              <th className="p-3 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {blogs.map(blog => (
-              <tr key={blog.id} className="border-t border-gray-200 dark:border-gray-700">
-                <td className="p-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedBlogs.includes(blog.id)}
-                    onChange={() => toggleSelect(blog.id)}
-                  />
-                </td>
-                <td className="p-3">{blog.title}</td>
-                <td className="p-3">{blog.author}</td>
-                <td className="p-3">
-                  <span className={`px-2 py-1 rounded ${
-                    blog.status === 'Pending' ? 'bg-yellow-500' :
-                    blog.status === 'Approved' ? 'bg-green-500' : 'bg-red-500'
-                  } text-white`}>
-                    {blog.status}
-                  </span>
-                </td>
-                <td className="p-3 space-x-2">
-                  <button 
-                    onClick={() => updateBlogStatus(blog.id, 'Approved')}
-                    className="text-green-500 hover:text-green-700"
+      <div className="ml-64 p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          {activeTab === 'Dashboard' && (
+            <>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {stats.map((stat, index) => (
+                  <motion.div
+                    key={stat.title}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                    whileHover={{ scale: 1.02 }}
                   >
-                    Approve
-                  </button>
-                  <button 
-                    onClick={() => updateBlogStatus(blog.id, 'Rejected')}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    Reject
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-// Analytics Component
-const Analytics = ({ darkMode, analytics, students }) => {
-  const maxBlogs = Math.max(analytics.totalBlogs, 1);
-  const maxActivity = Math.max(...Object.values(analytics.studentActivity), 1);
-
-  return (
-    <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-      <h2 className="text-xl font-bold mb-6">Analytics Dashboard</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Blogs Overview */}
-        <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-          <h3 className="text-lg font-bold mb-4">Blog Statistics</h3>
-          <div className="space-y-4">
-            <BarChart 
-              label="Total Blogs" 
-              value={analytics.totalBlogs} 
-              max={maxBlogs} 
-              darkMode={darkMode} 
-            />
-            <BarChart 
-              label="Approved Blogs" 
-              value={analytics.approvedBlogs} 
-              max={maxBlogs} 
-              color="bg-green-500" 
-              darkMode={darkMode} 
-            />
-            <BarChart 
-              label="Flagged Blogs" 
-              value={analytics.flaggedBlogs} 
-              max={maxBlogs} 
-              color="bg-red-500" 
-              darkMode={darkMode} 
-            />
-          </div>
-        </div>
-
-        {/* Student Activity */}
-        <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-          <h3 className="text-lg font-bold mb-4">Student Activity</h3>
-          <div className="space-y-4">
-            {students.map(student => (
-              <div key={student.id} className="flex items-center">
-                <span className="w-32 truncate">{student.name}:</span>
-                <div className="flex-1 ml-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full">
-                  <div 
-                    className="h-full bg-blue-500 rounded-full transition-all duration-500" 
-                    style={{ width: `${(analytics.studentActivity[student.id] || 0 / maxActivity) * 100}%` }}
-                  />
-                </div>
-                <span className="ml-4 w-12">{analytics.studentActivity[student.id] || 0}</span>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-2xl">{stat.icon}</span>
+                      <div className={`h-8 w-8 rounded-full bg-gradient-to-r ${stat.color} flex items-center justify-center`}>
+                        <span className="text-white text-xs">+{index + 1}%</span>
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">{stat.title}</h3>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      {stat.value}
+                    </p>
+                  </motion.div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+
+              {/* Recent Activity */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <motion.div
+                  className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
+                  <div className="space-y-4">
+                    {teacherData?.classes?.slice(0, 4).map((cls) => (
+                      <div key={cls.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white">
+                          {cls.name?.[0] || '?'}
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{cls.name}</h4>
+                          <p className="text-sm opacity-70">{cls.students?.length || 0} students</p>
+                        </div>
+                      </div>
+                    )) || (
+                      <div className="text-center text-gray-500">
+                        No classes yet
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <motion.button
+                      onClick={() => setShowClassForm(true)}
+                      className="p-4 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Create New Class
+                    </motion.button>
+                    <motion.button
+                      className="p-4 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-medium"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      View Reports
+                    </motion.button>
+                    <motion.button
+                      className="p-4 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Send Message
+                    </motion.button>
+                    <motion.button
+                      className="p-4 rounded-lg bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-medium"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Schedule Event
+                    </motion.button>
+                  </div>
+                </motion.div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'Classes' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">My Classes</h2>
+                <motion.button
+                  onClick={() => setShowClassForm(true)}
+                  className="px-4 py-2 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Create New Class
+                </motion.button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {teacherData?.classes?.map(cls => (
+                  <motion.div 
+                    key={cls.id}
+                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <h3 className="text-xl font-semibold mb-2">{cls.name}</h3>
+                    <p className="mb-4 opacity-80">{cls.description}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-500">
+                        Code: {cls.access_code || cls.joinCode || 'No code available'}
+                      </span>
+                      <span className="text-sm opacity-80">
+                        {cls.students?.length || 0} students
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
       </div>
-    </div>
-  );
-};
 
-// Student Management Component
-const StudentManagement = ({ darkMode, students, classes, addStudent }) => {
-  const [newStudent, setNewStudent] = useState({ name: '', joinCode: '' });
-
-  const handleAddStudent = () => {
-    if (!newStudent.name || !newStudent.joinCode) {
-      alert('Please fill all required fields');
-      return;
-    }
-    
-    if (!classes.some(c => c.joinCode === newStudent.joinCode)) {
-      alert('Invalid join code!');
-      return;
-    }
-
-    addStudent(newStudent);
-    setNewStudent({ name: '', joinCode: '' });
-  };
-
-  return (
-    <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-      <h2 className="text-xl font-bold mb-6">Student Management</h2>
-      
-      <div className="mb-8">
-        <h3 className="text-lg font-bold mb-4">Add New Student</h3>
-        <div className="flex gap-4">
-          <input
-            type="text"
-            placeholder="Student Name *"
-            value={newStudent.name}
-            onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
-            className={`flex-1 p-2 rounded border ${darkMode ? 'bg-gray-700 border-gray-600' : 'border-gray-300'}`}
-          />
-          <input
-            type="text"
-            placeholder="Class Join Code *"
-            value={newStudent.joinCode}
-            onChange={(e) => setNewStudent({...newStudent, joinCode: e.target.value})}
-            className={`flex-1 p-2 rounded border ${darkMode ? 'bg-gray-700 border-gray-600' : 'border-gray-300'}`}
-          />
-          <button
-            onClick={handleAddStudent}
-            className={`px-4 py-2 rounded ${darkMode ? 'bg-teal-600 hover:bg-teal-500' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+      {/* Class Creation Modal */}
+      <AnimatePresence>
+        {showClassForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
           >
-            Add Student
-          </button>
-        </div>
-      </div>
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className={`p-6 rounded-lg backdrop-blur-md ${
+                darkMode ? 'bg-gray-800/90' : 'bg-white/90'
+              } shadow-xl w-full max-w-md`}
+            >
+              <h2 className="text-2xl font-bold mb-6">Create New Class</h2>
+              
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                createClass();
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Class Name</label>
+                    <input
+                      type="text"
+                      value={newClass.name}
+                      onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
+                      className={`w-full p-3 rounded-lg border ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-white border-gray-300'
+                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      placeholder="Enter class name"
+                      required
+                    />
+                  </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-            <tr>
-              <th className="p-3 text-left">Student Name</th>
-              <th className="p-3 text-left">Class</th>
-              <th className="p-3 text-left">Join Code</th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map(student => (
-              <tr key={student.id} className="border-t border-gray-200 dark:border-gray-700">
-                <td className="p-3">{student.name}</td>
-                <td className="p-3">
-                  {classes.find(c => c.joinCode === student.joinCode)?.name || 'Not Enrolled'}
-                </td>
-                <td className="p-3">{student.joinCode}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Description</label>
+                    <textarea
+                      value={newClass.description}
+                      onChange={(e) => setNewClass({ ...newClass, description: e.target.value })}
+                      className={`w-full p-3 rounded-lg border ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-white border-gray-300'
+                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                      rows="4"
+                      placeholder="Enter class description"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-4 mt-6">
+                  <motion.button
+                    type="button"
+                    onClick={() => setShowClassForm(false)}
+                    className={`px-4 py-2 rounded-lg ${
+                      darkMode 
+                        ? 'bg-gray-700 hover:bg-gray-600' 
+                        : 'bg-gray-200 hover:bg-gray-300'
+                    }`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    type="submit"
+                    className="px-4 py-2 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Create Class
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
-
-// Helper Components
-const StatCard = ({ title, value, color }) => (
-  <div className={`p-4 rounded-lg ${color} text-white shadow`}>
-    <h3 className="text-lg font-bold">{title}</h3>
-    <p className="text-3xl">{value}</p>
-  </div>
-);
-
-const BarChart = ({ label, value, max, color = 'bg-blue-500', darkMode }) => {
-  const widthPercentage = (value / max) * 100 || 0;
-  return (
-    <div className="flex items-center">
-      <span className="w-32">{label}</span>
-      <div className="flex-1 ml-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full">
-        <div 
-          className={`h-full ${color} rounded-full transition-all duration-500`}
-          style={{ width: `${widthPercentage}%` }}
-        />
-      </div>
-      <span className="ml-4 w-12">{value}</span>
-    </div>
-  );
-};
-
-// Settings Component
-const SettingsContent = ({ darkMode, settings, setSettings }) => (
-  <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-    <h2 className="text-xl font-bold mb-6">Settings</h2>
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <label className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            checked={settings.notifications}
-            onChange={(e) => setSettings({ ...settings, notifications: e.target.checked })}
-            className="form-checkbox"
-          />
-          <span>Email Notifications</span>
-        </label>
-        <label className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            checked={settings.plagiarismCheck}
-            onChange={(e) => setSettings({ ...settings, plagiarismCheck: e.target.checked })}
-            className="form-checkbox"
-          />
-          <span>Automatic Plagiarism Check</span>
-        </label>
-      </div>
-    </div>
-  </div>
-);
 
 export default TeacherDashboard;

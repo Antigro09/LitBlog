@@ -1,7 +1,7 @@
 # models.py
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, Enum as SQLAlchemyEnum, Boolean
 from sqlalchemy.orm import relationship
-from database import Base
+from base import Base
 from enum import Enum
 from datetime import datetime
 
@@ -23,9 +23,17 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # For students: the classes they're enrolled in
     enrolled_classes = relationship("ClassEnrollment", back_populates="student")
-    # For teachers: the classes they teach
-    teaching_classes = relationship("Class", back_populates="teacher")
     blogs = relationship("Blog", back_populates="owner")
+
+class Teacher(Base):
+    __tablename__ = "teachers"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    user = relationship("User", backref="teacher_profile")
+    classes = relationship("Class", back_populates="teacher")
 
 class Class(Base):
     __tablename__ = "classes"
@@ -34,8 +42,8 @@ class Class(Base):
     description = Column(Text, nullable=True)
     access_code = Column(String(6), unique=True, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    teacher = relationship("User", back_populates="teaching_classes")
+    teacher_id = Column(Integer, ForeignKey("teachers.id"))
+    teacher = relationship("Teacher", back_populates="classes")
     students = relationship("ClassEnrollment", back_populates="class_")
     blogs = relationship("Blog", back_populates="class_")
 

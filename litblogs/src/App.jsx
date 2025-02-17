@@ -9,6 +9,8 @@ import TeacherDashboard from "./TeacherDashboard";
 import ClassFeed from "./ClassFeed";
 import RoleSelection from "./RoleSelection";
 import AdminDashboard from "./AdminDashboard";
+import PostView from "./PostView";
+import StudentHub from "./StudentHub";
 
 function App() {
   return (
@@ -25,6 +27,8 @@ function App() {
         <Route path="/class-feed" element={<ClassFeed />} />
         <Route path="/class-feed/:classId" element={<ClassFeed />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
+        <Route path="/class/:classId/post/:postId" element={<PostView />} />
+        <Route path="/student-hub" element={<StudentHub />} />
       </Routes>
     </Router>
   );

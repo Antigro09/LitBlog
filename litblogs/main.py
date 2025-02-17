@@ -2,8 +2,10 @@
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from database import engine, get_db, Base
-import models, schemas
+from database import engine, get_db, reset_database
+from base import Base
+import models
+import schemas
 from typing import List
 from pydantic import BaseModel
 from passlib.context import CryptContext
@@ -15,6 +17,9 @@ from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
 import shutil
 from pathlib import Path
+import random
+import string
+from models import User, Teacher  # Add this line
 
 app = FastAPI()
 
@@ -60,8 +65,6 @@ def verify_password(plain_password: str, hashed_password: str):
 
 @app.post("/api/auth/register", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    print(f"Starting registration for user with role: {user.role}")  # Debug print
-    
     # Check if email or username already exists
     db_user = db.query(models.User).filter(
         (models.User.email == user.email) | (models.User.username == user.username)
@@ -72,29 +75,15 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
             detail="Email or username already registered"
         )
 
-    # Verify access codes based on role
-    class_ = None
-    if user.role == models.UserRole.STUDENT:
-        print(f"Checking class code: {user.access_code}")  # Debug print
-        class_ = db.query(models.Class).filter(
-            models.Class.access_code == user.access_code
-        ).first()
-        print(f"Found class: {class_}")  # Debug print
-        print(f"Class details: id={getattr(class_, 'id', None)}, name={getattr(class_, 'name', None)}")  # Debug print
-        
-        if not class_:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid class code"
-            )
-    elif user.role == models.UserRole.TEACHER:
-        if user.access_code != os.getenv("TEACHER_CODE"):
+    # Verify access codes based on role (but skip for students)
+    if user.role == models.UserRole.TEACHER:
+        if not user.access_code or user.access_code != os.getenv("TEACHER_CODE"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid teacher code"
             )
     elif user.role == models.UserRole.ADMIN:
-        if user.access_code != os.getenv("ADMIN_CODE"):
+        if not user.access_code or user.access_code != os.getenv("ADMIN_CODE"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid admin code"
@@ -114,58 +103,37 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         )
         db.add(new_user)
         db.flush()
-        print(f"Created user with ID: {new_user.id}")  # Debug print
 
-        # Create class enrollment for students
-        class_info = None
-        if user.role == models.UserRole.STUDENT and class_:
-            print(f"Attempting to create enrollment: student={new_user.id}, class={class_.id}")  # Debug print
-            
-            enrollment = models.ClassEnrollment(
-                student_id=new_user.id,
-                class_id=class_.id
+        # If the user is a teacher, create a Teacher record
+        if user.role == models.UserRole.TEACHER:
+            new_teacher = models.Teacher(
+                name=f"{user.first_name} {user.last_name}",
+                email=user.email,
+                hashed_password=hashed_password
             )
-            db.add(enrollment)
-            db.flush()
-            
-            # Verify enrollment
-            check = db.query(models.ClassEnrollment).filter_by(
-                student_id=new_user.id,
-                class_id=class_.id
-            ).first()
-            print(f"Enrollment verification: {check is not None}")  # Debug print
-
-            class_info = {
-                "id": class_.id,
-                "name": class_.name,
-                "access_code": class_.access_code
-            }
+            db.add(new_teacher)
 
         # Commit all changes
         db.commit()
-        print("Database changes committed successfully")  # Debug print
+        db.refresh(new_user)
 
         # Create access token
         access_token = create_access_token(data={"sub": str(new_user.id)})
         
-        response_data = {
+        return {
             "id": new_user.id,
             "username": new_user.username,
             "email": new_user.email,
             "first_name": new_user.first_name,
             "last_name": new_user.last_name,
-            "role": new_user.role.value,  # Make sure this is the string value
+            "role": new_user.role.value,
             "is_admin": new_user.is_admin,
             "created_at": new_user.created_at,
-            "token": access_token,
-            "class_info": class_info
+            "token": access_token
         }
-        print(f"Response data: {response_data}")  # Debug print
-        return response_data
 
     except Exception as e:
         db.rollback()
-        print(f"Error in registration: {str(e)}")  # Debug print
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating user: {str(e)}"
@@ -349,7 +317,20 @@ async def get_class_posts(
         models.Blog.class_id == class_id
     ).order_by(models.Blog.created_at.desc()).all()
     
-    return posts
+    # Add author information to each post
+    posts_with_authors = []
+    for post in posts:
+        author = db.query(models.User).filter(models.User.id == post.owner_id).first()
+        posts_with_authors.append({
+            **post.__dict__,
+            "author": {
+                "id": author.id,
+                "first_name": author.first_name,
+                "last_name": author.last_name
+            }
+        })
+    
+    return posts_with_authors
 
 @app.get("/api/users")
 async def get_users(
@@ -420,6 +401,235 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
         return {"url": f"/uploads/files/{file.filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/teacher/dashboard")
+async def get_teacher_dashboard(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user.role == models.UserRole.TEACHER:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    teacher = db.query(models.Teacher).filter(
+        models.Teacher.email == current_user.email
+    ).first()
+    
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher record not found")
+    
+    return {
+        "id": teacher.id,
+        "name": teacher.name,
+        "email": teacher.email,
+        "classes": [
+            {
+                "id": cls.id,
+                "name": cls.name,
+                "description": cls.description,
+                "access_code": cls.access_code,
+                "students": [
+                    {
+                        "id": enrollment.student_id,
+                        "name": f"{enrollment.student.first_name} {enrollment.student.last_name}"
+                    }
+                    for enrollment in cls.students
+                ]
+            }
+            for cls in teacher.classes
+        ]
+    }
+
+@app.post("/api/classes")
+async def create_class(
+    class_data: schemas.ClassCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if not current_user.role == models.UserRole.TEACHER:
+        raise HTTPException(status_code=403, detail="Only teachers can create classes")
+    
+    teacher = db.query(models.Teacher).filter(
+        models.Teacher.email == current_user.email
+    ).first()
+    
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher record not found")
+    
+    new_class = models.Class(
+        name=class_data.name,
+        description=class_data.description,
+        teacher_id=teacher.id,
+        access_code=generate_unique_code(db)
+    )
+    
+    db.add(new_class)
+    db.commit()
+    db.refresh(new_class)
+    return new_class
+
+@app.post("/api/classes/{class_id}/posts", response_model=schemas.BlogResponse)
+async def create_class_post(
+    class_id: int,
+    post: schemas.BlogCreate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Verify user has access to this class
+    if current_user.role == models.UserRole.STUDENT:
+        enrollment = db.query(models.ClassEnrollment).filter(
+            models.ClassEnrollment.student_id == current_user.id,
+            models.ClassEnrollment.class_id == class_id
+        ).first()
+        if not enrollment:
+            raise HTTPException(status_code=403, detail="Not enrolled in this class")
+    
+    new_post = models.Blog(
+        title=post.title,
+        content=post.content,
+        owner_id=current_user.id,
+        class_id=class_id
+    )
+    
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    
+    return new_post
+
+@app.get("/api/classes/{class_id}/posts/{post_id}")
+async def get_class_post(
+    class_id: int,
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # Check access rights
+    if current_user.role == models.UserRole.STUDENT:
+        enrollment = db.query(models.ClassEnrollment).filter(
+            models.ClassEnrollment.student_id == current_user.id,
+            models.ClassEnrollment.class_id == class_id
+        ).first()
+        if not enrollment:
+            raise HTTPException(status_code=403, detail="Not enrolled in this class")
+    
+    post = db.query(models.Blog).filter(
+        models.Blog.id == post_id,
+        models.Blog.class_id == class_id
+    ).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Get the author's information
+    author = db.query(models.User).filter(models.User.id == post.owner_id).first()
+    
+    # Return post with author info
+    return {
+        **post.__dict__,
+        "author": {
+            "id": author.id,
+            "first_name": author.first_name,
+            "last_name": author.last_name
+        }
+    }
+
+# Add this before your app starts
+@app.on_event("startup")
+async def startup_event():
+    reset_database()
+
+def generate_unique_code(db: Session, length: int = 6) -> str:
+    while True:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+        existing = db.query(models.Class).filter(
+            models.Class.access_code == code
+        ).first()
+        if not existing:
+            return code
+
+@app.get("/api/student/classes")
+async def get_student_classes(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != models.UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Not a student")
+    
+    enrollments = db.query(models.ClassEnrollment).filter(
+        models.ClassEnrollment.student_id == current_user.id
+    ).all()
+    
+    classes = []
+    for enrollment in enrollments:
+        class_ = db.query(models.Class).filter(models.Class.id == enrollment.class_id).first()
+        teacher = db.query(models.Teacher).filter(models.Teacher.id == class_.teacher_id).first()
+        classes.append({
+            "id": class_.id,
+            "name": class_.name,
+            "description": class_.description,
+            "teacher_name": teacher.name
+        })
+    
+    return classes
+
+@app.post("/api/student/join-class")
+async def join_class(
+    class_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != models.UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Not a student")
+    
+    class_ = db.query(models.Class).filter(
+        models.Class.access_code == class_data["access_code"]
+    ).first()
+    
+    if not class_:
+        raise HTTPException(status_code=404, detail="Class not found")
+    
+    # Check if already enrolled
+    existing_enrollment = db.query(models.ClassEnrollment).filter(
+        models.ClassEnrollment.student_id == current_user.id,
+        models.ClassEnrollment.class_id == class_.id
+    ).first()
+    
+    if existing_enrollment:
+        raise HTTPException(status_code=400, detail="Already enrolled in this class")
+    
+    enrollment = models.ClassEnrollment(
+        student_id=current_user.id,
+        class_id=class_.id
+    )
+    
+    db.add(enrollment)
+    db.commit()
+    
+    return {"message": "Successfully joined class"}
+
+@app.get("/api/student/posts")
+async def get_student_posts(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if current_user.role != models.UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="Not a student")
+    
+    # Get all posts by the student
+    posts = db.query(models.Blog).filter(
+        models.Blog.owner_id == current_user.id
+    ).order_by(models.Blog.created_at.desc()).all()
+    
+    # Add class information to each post
+    posts_with_class = []
+    for post in posts:
+        class_ = db.query(models.Class).filter(models.Class.id == post.class_id).first()
+        posts_with_class.append({
+            **post.__dict__,
+            "class_name": class_.name if class_ else "Unknown Class"
+        })
+    
+    return posts_with_class
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
