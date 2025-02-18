@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import './LitBlogs.css'; // Import any custom styles here
 import axios from 'axios';  // Make sure axios is installed: npm install axios
+import Loader from './components/Loader';
 
 const SignUp = () => {
     const navigate = useNavigate();
@@ -106,7 +107,8 @@ const SignUp = () => {
         const userInfo = {
           role: response.data.role,
           userId: response.data.id,
-          username: response.data.username
+          username: response.data.username,
+          firstName: response.data.first_name,
         };
         localStorage.setItem('user_info', JSON.stringify(userInfo));
         
@@ -426,15 +428,7 @@ const SignUp = () => {
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           >
-            <motion.div
-              animate={{
-                rotate: 360,
-                transition: { duration: 1, repeat: Infinity, ease: "linear" }
-              }}
-              className={`w-16 h-16 border-4 border-t-transparent rounded-full ${
-                darkMode ? 'border-teal-500' : 'border-blue-500'
-              }`}
-            />
+            <Loader />
           </motion.div>
         )}
       </AnimatePresence>

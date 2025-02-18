@@ -209,6 +209,23 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         "is_admin": user.is_admin
     }
 
+@app.get("/api/user/{user_id}")
+async def get_user_info(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "role": user.role.value,
+        "id": user.id,
+        "username": user.username,
+        "first_name": user.first_name
+    }
+
 # ---------- Blog Endpoints ----------
 
 @app.get("/api/blogs", response_model=List[schemas.BlogResponse])

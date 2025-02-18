@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import Navbar from './components/Navbar';
 import './LitBlogs.css'; // Import your styles
 
 const Help = () => {
   const [darkMode, setDarkMode] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
 
   // Toggle dark mode
   const toggleDarkMode = () => {
@@ -16,25 +15,6 @@ const Help = () => {
       return newDarkMode;
     });
   };
-
-  // Toggle dropdown
-  const toggleDropdown = () => {
-    setIsDropdownOpen((prev) => !prev);
-  };
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   // Load dark mode preference from localStorage
   useEffect(() => {
@@ -189,122 +169,31 @@ const Help = () => {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, []);
 
+  const [userInfo, setUserInfo] = useState(null);
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('class_info');
+    setUserInfo(null);
+    navigate('/');
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
-      <nav className="navbar z-50 fixed top-4 left-1/2 transform -translate-x-1/2 w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
-        <div className="flex items-center gap-6 whitespace-nowrap">
-          {/* Logo */}
-          <Link to="/">
-            <motion.img
-              src="/logo.png"
-              alt="Logo"
-              className="h-8 transition-transform duration-300 hover:scale-110 cursor-pointer"
-              whileHover={{ scale: 1.1 }}
-            />
-          </Link>
-
-          {/* Links (Visible on Larger Screens) */}
-          <div className="hidden md:flex items-center gap-6">
-            <Link
-              to="/"
-              className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-            >
-              Home
-            </Link>
-            <Link
-              to="/tambellini"
-              className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-            >
-              Ms. Tambellini's English 10
-            </Link>
-            <Link
-              to="/musk"
-              className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-            >
-              Ms. Musk's English 9
-            </Link>
-            <Link
-              to="/help"
-              className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-            >
-              Help
-            </Link>
-          </div>
-
-          {/* Dropdown Menu (Visible on Smaller Screens) */}
-          <div className="md:hidden relative" ref={dropdownRef}>
-            <button
-              onClick={toggleDropdown}
-              className="text-gray-900 dark:text-white hover:text-blue-500 transition-colors duration-300 focus:outline-none"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`h-6 w-6 transition-transform duration-300 ${isDropdownOpen ? "rotate-90" : ""}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-            </button>
-
-            {/* Dropdown Content */}
-            <AnimatePresence>
-              {isDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg py-2"
-                >
-                  <Link
-                    to="/"
-                    className="block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 truncate"
-                  >
-                    Home
-                  </Link>
-                  <Link
-                    to="/tambellini"
-                    className="block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 truncate"
-                  >
-                    Ms. Tambellini's 10 English
-                  </Link>
-                  <Link
-                    to="/musk"
-                    className="block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 truncate"
-                  >
-                    Ms. Musk's 9 English
-                  </Link>
-                  <Link
-                    to="/help"
-                    className="block px-4 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 truncate"
-                  >
-                    Help
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Sign In Icon */}
-          <Link to="/sign-in">
-            <motion.svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 448 512"
-              className={`h-6 w-6 p-1 border-2 rounded-full cursor-pointer transition-all duration-300 ${darkMode ? 'fill-white border-white hover:bg-gray-700' : 'fill-gray-900 border-gray-900 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-              whileHover={{ scale: 1.1 }}
-            >
-              <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zM178.3 304C79.8 304 0 383.8 0 482.3 0 498.7 13.3 512 29.7 512h388.6c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3z" />
-            </motion.svg>
-          </Link>
-        </div>
-      </nav>
+      <Navbar
+      userInfo={userInfo}
+      onSignOut={handleSignOut}
+      darkMode={darkMode}
+      logo="./logo.png"
+      />
 
       {/* Toggle Dark Mode Button */}
       <motion.div
@@ -542,7 +431,7 @@ const Help = () => {
               type="email"
               placeholder="Enter your email"
               onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-6 py-3 rounded-full ${darkMode ? 'bg-blue-700 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-800'} border focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-white`}
+              className={`w-full px-6 py-3 rounded-full ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-800'} border focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400`}
               required
             />
           </div>

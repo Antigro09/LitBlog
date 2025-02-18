@@ -15,6 +15,7 @@ import 'prismjs/components/prism-java';
 import 'prismjs/components/prism-markup'; // For HTML
 import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-sql';
+import Loader from './components/Loader';
 
 const expandableListStyles = `
   .expandable-list {
@@ -553,10 +554,8 @@ const ClassFeed = () => {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${
-        darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'
-      }`}>
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-gray-900 dark:to-gray-800">
+        <Loader />
       </div>
     );
   }

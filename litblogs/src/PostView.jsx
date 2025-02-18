@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import Loader from './components/Loader';
 
 const PostView = () => {
   const { classId, postId } = useParams();
@@ -31,7 +32,7 @@ const PostView = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+        <Loader />
       </div>
     );
   }

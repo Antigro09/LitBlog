@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import './LitBlogs.css'; // Import any custom styles here
 import axios from 'axios';
+import Loader from './components/Loader';
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const dropdownRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -58,6 +60,7 @@ const SignIn = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
     setErrorMessage("");
     
     try {
@@ -69,7 +72,23 @@ const SignIn = () => {
       // Store the token
       localStorage.setItem('token', response.data.access_token);
       
-      // Redirect based on role and class info
+      // Fetch user info
+      const userInfoResponse = await axios.get(`http://localhost:8000/api/user/${response.data.user_id}`, {
+        headers: {
+          'Authorization': `Bearer ${response.data.access_token}`
+        }
+      });
+      
+      // Store user info
+      const userInfo = {
+        role: userInfoResponse.data.role,
+        userId: userInfoResponse.data.id,
+        username: userInfoResponse.data.username,
+        firstName: userInfoResponse.data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+      
+      // Redirect based on role
       const role = response.data.role;
       
       if (role === 'STUDENT') {
@@ -80,10 +99,13 @@ const SignIn = () => {
         navigate('/admin-dashboard');
       }
     } catch (error) {
+      console.error('Login error:', error);
       setErrorMessage(error.response?.data?.detail || "Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
-
+  
   return (
     <div className={`min-h-screen flex items-center justify-center transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
@@ -266,6 +288,20 @@ const SignIn = () => {
           {darkMode ? "🌞" : "🌙"}
         </button>
       </motion.div>
+
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <Loader />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
