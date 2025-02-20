@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Navbar from './components/Navbar';
 import './LitBlogs.css'; // Import your styles
@@ -60,6 +60,7 @@ const Tambellini = () => {
     }
   }, [darkMode]);
 
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState(null);
   useEffect(() => {
     const storedUserInfo = localStorage.getItem('user_info');

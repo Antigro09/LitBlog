@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import Button from './Sign-out';
 
 const Navbar = ({ 
   userInfo, 
@@ -53,7 +54,7 @@ const Navbar = ({
   };
 
   return (
-    <nav className="z-50 fixed top-4 left-1/2 -translate-x-1/2 w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+    <nav className="flex justify-center z-50 fixed top-4 left-1/2 -translate-x-1/2 w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
       <div className="flex items-center gap-5 whitespace-nowrap">
         {/* Logo */}
         <Link to="/">
@@ -66,7 +67,7 @@ const Navbar = ({
         </Link>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-center gap-5 ml-0">
           {navLinks.map((link, index) => (
             <Link
               key={index}
@@ -144,12 +145,7 @@ const Navbar = ({
                   >
                     Profile
                   </Link>
-                  <button
-                    onClick={onSignOut}
-                    className="block w-full text-left px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    Sign Out
-                  </button>
+                  <Button onSignOut={onSignOut} />
                 </motion.div>
               )}
             </AnimatePresence>
