@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import Navbar from './components/Navbar';
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
@@ -109,12 +110,34 @@ const TeacherDashboard = () => {
     );
   }
 
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('class_info');
+    setUserInfo(null);
+    navigate('/');
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${
       darkMode 
         ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' 
         : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'
     }`}>
+      {/* Navbar */}
+      <Navbar 
+      userInfo={userInfo}
+      onSignOut={handleSignOut}
+      darkMode={darkMode}
+      logo="./logo.png"
+      />
       {/* Sidebar */}
       <motion.div 
         initial={{ x: -300 }}
