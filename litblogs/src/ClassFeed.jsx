@@ -16,6 +16,7 @@ import 'prismjs/components/prism-markup'; // For HTML
 import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-sql';
 import Loader from './components/Loader';
+import Navbar from "./components/Navbar";
 
 const expandableListStyles = `
   .expandable-list {
@@ -570,110 +571,30 @@ const ClassFeed = () => {
     );
   }
 
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('class_info');
+    setUserInfo(null);
+    navigate('/');
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
-      {/* Centered Navbar */}
-      <div className="fixed top-4 left-0 right-0 flex justify-center z-50">
-        <motion.nav 
-          className={`navbar w-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-md py-2 px-6 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50`}
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          <div className="flex items-center gap-6 whitespace-nowrap">
-            {/* Logo */}
-            <Link to="/">
-              <motion.img
-                src="/logo.png"
-                alt="Logo"
-                className="h-8 transition-transform duration-300 hover:scale-110 cursor-pointer"
-                whileHover={{ scale: 1.1 }}
-              />
-            </Link>
-
-            {/* Navigation Links */}
-            <div className="hidden md:flex items-center gap-6">
-              <Link
-                to="/"
-                className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-              >
-                Home
-              </Link>
-              <Link
-                to="/tambellini"
-                className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-              >
-                Tambellini
-              </Link>
-              <Link
-                to="/musk"
-                className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-              >
-                Musk
-              </Link>
-              <Link
-                to="/help"
-                className={`text-gray-900 dark:text-white hover:${darkMode ? 'text-cyan-400' : 'text-blue-500'} transition-colors duration-300 text-sm md:text-base`}
-              >
-                Help
-              </Link>
-            </div>
-
-            {/* Dark Mode Toggle */}
-            <motion.button
-              onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-full ${
-                darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'
-              } transition-colors duration-300`}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {darkMode ? "🌞" : "🌙"}
-            </motion.button>
-
-            {/* Profile Icon */}
-            <motion.div
-              className="relative"
-              whileHover={{ scale: 1.1 }}
-            >
-              <svg
-                className={`w-8 h-8 ${
-                  darkMode ? 'text-white' : 'text-gray-900'
-                }`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </motion.div>
-
-            {/* Sign Out Button */}
-            <motion.button
-              onClick={() => {
-                localStorage.removeItem('token');
-                localStorage.removeItem('class_info');
-                navigate('/sign-in');
-              }}
-              className={`px-4 py-2 rounded-lg ${
-                darkMode 
-                  ? 'bg-red-600 hover:bg-red-500' 
-                  : 'bg-red-500 hover:bg-red-600'
-              } text-white transition-colors duration-300`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Sign Out
-            </motion.button>
-          </div>
-        </motion.nav>
-      </div>
+      {/* Navbar */}
+      <Navbar 
+      userInfo={userInfo}
+      onSignOut={handleSignOut}
+      darkMode={darkMode}
+      logo="./logo.png"
+      />
 
       {/* Add the new blog navigation below the main navbar */}
       <div className={`border-b backdrop-blur-md bg-white/30 dark:bg-gray-800/30 ${
