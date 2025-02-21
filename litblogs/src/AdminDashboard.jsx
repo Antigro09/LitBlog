@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import Navbar from './components/Navbar';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -60,10 +61,30 @@ const AdminDashboard = () => {
     );
   }
 
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('class_info');
+    setUserInfo(null);
+    navigate('/');
+  };
+
   return (
-    <div className={`min-h-screen ${
-      darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'
-    }`}>
+    <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
+      {/* Navbar */}
+      <Navbar 
+      userInfo={userInfo}
+      onSignOut={handleSignOut}
+      darkMode={darkMode}
+      logo="./logo.png"
+      />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
 
