@@ -298,30 +298,78 @@ async def update_role(
     db.commit()
     return {"message": "Role updated successfully"}
 
-@app.get("/api/classes/{class_id}")
+@app.get("/api/classes/{class_id}/details")
 async def get_class_details(
     class_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    # Check if user has access to this class
+    if current_user.role == models.UserRole.STUDENT:
+        enrollment = db.query(models.ClassEnrollment).filter(
+            models.ClassEnrollment.student_id == current_user.id,
+            models.ClassEnrollment.class_id == class_id
+        ).first()
+        if not enrollment:
+            raise HTTPException(status_code=403, detail="Not enrolled in this class")
+    elif current_user.role == models.UserRole.TEACHER:
+        class_ = db.query(models.Class).filter(
+            models.Class.id == class_id,
+            models.Class.teacher_id == current_user.id
+        ).first()
+        if not class_:
+            raise HTTPException(status_code=403, detail="Not authorized to access this class")
+    
+    # Get class details
     class_ = db.query(models.Class).filter(models.Class.id == class_id).first()
     if not class_:
         raise HTTPException(status_code=404, detail="Class not found")
     
+    # Get total posts for the class
+    total_posts = db.query(models.Blog).filter(models.Blog.class_id == class_id).count()
+    
+    # Get students with their post counts
+    students = []
+    student_records = db.query(models.User).join(
+        models.ClassEnrollment,
+        models.ClassEnrollment.student_id == models.User.id
+    ).filter(
+        models.ClassEnrollment.class_id == class_id
+    ).all()
+
+    for student in student_records:
+        # Count posts for each student
+        post_count = db.query(models.Blog).filter(
+            models.Blog.owner_id == student.id,
+            models.Blog.class_id == class_id
+        ).count()
+        
+        students.append({
+            "id": student.id,
+            "name": f"{student.first_name} {student.last_name}",
+            "email": student.email,
+            "username": student.username,
+            "posts_count": post_count  # Total posts for each student
+        })
+    
+    # Format the response
     return {
         "id": class_.id,
         "name": class_.name,
+        "description": class_.description,
         "access_code": class_.access_code,
-        "description": class_.description
+        "total_posts": total_posts,  # Total posts for the whole class
+        "students": students,
     }
 
-@app.get("/api/classes/{class_id}/posts")
-async def get_class_posts(
+@app.post("/api/classes/{class_id}/posts", response_model=schemas.BlogResponse)
+async def create_class_post(
     class_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    post: schemas.BlogCreate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    # Check access rights
+    # Verify user has access to this class
     if current_user.role == models.UserRole.STUDENT:
         enrollment = db.query(models.ClassEnrollment).filter(
             models.ClassEnrollment.student_id == current_user.id,
@@ -330,24 +378,65 @@ async def get_class_posts(
         if not enrollment:
             raise HTTPException(status_code=403, detail="Not enrolled in this class")
     
+    new_post = models.Blog(
+        title=post.title,
+        content=post.content,
+        owner_id=current_user.id,
+        class_id=class_id
+    )
+    
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    
+    # Return post with all required fields
+    return {
+        "id": new_post.id,
+        "title": new_post.title,
+        "content": new_post.content,
+        "created_at": new_post.created_at,
+        "owner_id": new_post.owner_id,
+        "class_id": new_post.class_id,
+        "author": f"{current_user.first_name} {current_user.last_name}",
+        "likes": 0,
+        "comments": 0
+    }
+
+@app.get("/api/classes/{class_id}/posts")
+async def get_class_posts(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # Check if user has access to this class
+    if current_user.role == models.UserRole.STUDENT:
+        enrollment = db.query(models.ClassEnrollment).filter(
+            models.ClassEnrollment.student_id == current_user.id,
+            models.ClassEnrollment.class_id == class_id
+        ).first()
+        if not enrollment:
+            raise HTTPException(status_code=403, detail="Not enrolled in this class")
+    
+    # Get posts with author information
     posts = db.query(models.Blog).filter(
         models.Blog.class_id == class_id
     ).order_by(models.Blog.created_at.desc()).all()
     
-    # Add author information to each post
-    posts_with_authors = []
+    # Format posts with author information
+    formatted_posts = []
     for post in posts:
         author = db.query(models.User).filter(models.User.id == post.owner_id).first()
-        posts_with_authors.append({
-            **post.__dict__,
-            "author": {
-                "id": author.id,
-                "first_name": author.first_name,
-                "last_name": author.last_name
-            }
+        formatted_posts.append({
+            "id": post.id,
+            "title": post.title,
+            "content": post.content,
+            "created_at": post.created_at,
+            "author": f"{author.first_name} {author.last_name}" if author else "Unknown Author",
+            "likes": len(post.likes) if hasattr(post, 'likes') else 0,
+            "comments": len(post.comments) if hasattr(post, 'comments') else 0
         })
     
-    return posts_with_authors
+    return formatted_posts
 
 @app.get("/api/users")
 async def get_users(
@@ -365,15 +454,24 @@ async def get_classes(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    if not current_user.is_admin:
+    # Allow both admin and teacher access
+    if not (current_user.is_admin or current_user.role == models.UserRole.TEACHER):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    classes = db.query(models.Class).all()
+    # For teachers, only return their classes
+    if current_user.role == models.UserRole.TEACHER:
+        classes = db.query(models.Class).filter(
+            models.Class.teacher_id == current_user.id
+        ).all()
+    else:  # For admins, return all classes
+        classes = db.query(models.Class).all()
+    
     # Add student count to each class
     for class_ in classes:
         class_.student_count = db.query(models.ClassEnrollment).filter(
             models.ClassEnrollment.class_id == class_.id
         ).count()
+    
     return classes
 
 @app.get("/api/debug/classes")
@@ -483,35 +581,6 @@ async def create_class(
     db.commit()
     db.refresh(new_class)
     return new_class
-
-@app.post("/api/classes/{class_id}/posts", response_model=schemas.BlogResponse)
-async def create_class_post(
-    class_id: int,
-    post: schemas.BlogCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    # Verify user has access to this class
-    if current_user.role == models.UserRole.STUDENT:
-        enrollment = db.query(models.ClassEnrollment).filter(
-            models.ClassEnrollment.student_id == current_user.id,
-            models.ClassEnrollment.class_id == class_id
-        ).first()
-        if not enrollment:
-            raise HTTPException(status_code=403, detail="Not enrolled in this class")
-    
-    new_post = models.Blog(
-        title=post.title,
-        content=post.content,
-        owner_id=current_user.id,
-        class_id=class_id
-    )
-    
-    db.add(new_post)
-    db.commit()
-    db.refresh(new_post)
-    
-    return new_post
 
 @app.get("/api/classes/{class_id}/posts/{post_id}")
 async def get_class_post(

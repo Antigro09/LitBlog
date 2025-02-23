@@ -264,6 +264,7 @@ const MOCK_POSTS = [
 const ClassFeed = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
+  const [userInfo, setUserInfo] = useState(null);
   const [classDetails, setClassDetails] = useState(null);
   const [posts, setPosts] = useState(MOCK_POSTS);
   const [loading, setLoading] = useState(true);
@@ -295,17 +296,27 @@ const ClassFeed = () => {
   const gf = new GiphyFetch('FEzk8anVjSKZIiInlJWd4Jo4OuYBjV9B');
 
   useEffect(() => {
+    // Load user info
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
-        
-        // Fetch class details
-        const classResponse = await axios.get(`http://localhost:8000/api/classes/${classId}`, {
+        if (!token) {
+          navigate('/sign-in');
+          return;
+        }
+
+        // Use the correct endpoint
+        const classResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/details`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setClassDetails(classResponse.data);
 
-        // Fetch posts for this class
+        // Get class posts using the posts endpoint
         const postsResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -313,13 +324,17 @@ const ClassFeed = () => {
 
         setLoading(false);
       } catch (error) {
-        setError('Failed to load class data');
+        console.error('Error fetching class data:', error);
+        setError(error.response?.data?.detail || 'Failed to load class data');
         setLoading(false);
+        if (error.response?.status === 401) {
+          navigate('/sign-in');
+        }
       }
     };
 
     fetchData();
-  }, [classId]);
+  }, [classId, navigate]);
 
   useEffect(() => {
     if (darkMode) {
@@ -342,7 +357,8 @@ const ClassFeed = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:8000/api/classes/${classId}/posts`, 
+      await axios.post(
+        `http://localhost:8000/api/classes/${classId}/posts`, 
         {
           title: postTitle,
           content: postContent.text,
@@ -352,7 +368,13 @@ const ClassFeed = () => {
         }
       );
 
-      setPosts(prev => [response.data, ...prev]);
+      // Fetch updated posts after creation
+      const postsResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPosts(postsResponse.data);
+      
+      // Reset form
       setShowNewPostForm(false);
       setPostTitle("");
       setPostContent({
@@ -571,13 +593,6 @@ const ClassFeed = () => {
     );
   }
 
-  useEffect(() => {
-    const storedUserInfo = localStorage.getItem('user_info');
-    if (storedUserInfo) {
-      setUserInfo(JSON.parse(storedUserInfo));
-    }
-  }, []);
-
   const handleSignOut = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user_info');
@@ -697,45 +712,45 @@ const ClassFeed = () => {
           <div className="space-y-6">
             {posts.map((post) => (
               <motion.div
-                key={post.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow duration-300"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
-              >
-                <div className="p-6">
-                  {/* Author Info */}
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
-                      {post.author?.first_name?.[0] || '?'}
-                    </div>
-                    <div>
-                      <h3 className="font-medium dark:text-white">
-                        {post.author ? `${post.author.first_name} ${post.author.last_name}` : 'Unknown Author'}
-                      </h3>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(post.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
+              key={post.id}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow duration-300"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
+            >
+              <div className="p-6">
+                {/* Author Info */}
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+                    
                   </div>
-
-                  {/* Post Title and Preview */}
-                  <h2 className="text-xl font-semibold mb-2 dark:text-white">{post.title}</h2>
-                  <p className="text-gray-600 dark:text-gray-300 line-clamp-3">{post.content}</p>
-
-                  {/* Post Stats */}
-                  <div className="mt-4 flex items-center space-x-4 text-gray-500 dark:text-gray-400">
-                    <div className="flex items-center space-x-1">
-                      <span>👍</span>
-                      <span>0</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <span>💬</span>
-                      <span>0</span>
-                    </div>
+                  <div>
+                    <h3 className="font-medium dark:text-white">
+                    <span>By {post.author}</span>
+                    </h3>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
-              </motion.div>
+
+                {/* Post Title and Preview */}
+                <h2 className="text-xl font-semibold mb-2 dark:text-white">{post.title}</h2>
+                <p className="text-gray-600 dark:text-gray-300 line-clamp-3">{post.content}</p>
+
+                {/* Post Stats */}
+                <div className="mt-4 flex items-center space-x-4 text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center space-x-1">
+                    <span>👍</span>
+                    <span>0</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <span>💬</span>
+                    <span>0</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
             ))}
           </div>
         </div>

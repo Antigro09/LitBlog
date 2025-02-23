@@ -21,6 +21,9 @@ class BlogResponse(BaseModel):
     created_at: datetime
     owner_id: int
     class_id: int
+    author: str | None = None
+    likes: int = 0
+    comments: int = 0
 
     class Config:
         from_attributes = True

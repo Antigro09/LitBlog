@@ -3,38 +3,56 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import Navbar from './components/Navbar';
+import ClassDetails from './components/ClassDetails';
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(() => {
+  const [darkMode] = useState(() => {
     return JSON.parse(localStorage.getItem('darkMode')) ?? false;
   });
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [showClassForm, setShowClassForm] = useState(false);
   const [newClass, setNewClass] = useState({ name: '', description: '' });
-  const [teacherData, setTeacherData] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
+  const [selectedClass, setSelectedClass] = useState(null);
 
+  // Combine the useEffects
   useEffect(() => {
-    const fetchTeacherData = async () => {
+    // Load user info
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+
+    // Fetch dashboard data
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/sign-in');
+      return;
+    }
+
+    const fetchData = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          navigate('/sign-in');
-          return;
-        }
-
-        const response = await axios.get('http://localhost:8000/api/teacher/dashboard', {
+        const config = {
           headers: { Authorization: `Bearer ${token}` }
-        });
+        };
 
-        console.log('Teacher Data:', response.data);
-        console.log('Classes:', response.data.classes);
-        setTeacherData(response.data);
+        // Fetch teacher dashboard data
+        const response = await axios.get('http://localhost:8000/api/teacher/dashboard', config);
+        
+        // Update state with teacher data
+        setClasses(response.data.classes || []);
+        setUserInfo(prev => ({
+          ...prev,
+          name: response.data.name
+        }));
         setLoading(false);
       } catch (error) {
-        setError('Failed to load teacher data');
+        setError(error.response?.data?.detail || 'Failed to load dashboard data');
         setLoading(false);
         if (error.response?.status === 401) {
           navigate('/sign-in');
@@ -42,20 +60,20 @@ const TeacherDashboard = () => {
       }
     };
 
-    fetchTeacherData();
+    fetchData();
   }, [navigate]);
 
   // Stats for the dashboard
   const stats = [
     {
       title: "Total Classes",
-      value: teacherData?.classes?.length || 0,
+      value: classes?.length || 0,
       color: "from-blue-600 to-indigo-600",
       icon: "📚"
     },
     {
       title: "Total Students",
-      value: teacherData?.classes?.reduce((acc, cls) => 
+      value: classes?.reduce((acc, cls) => 
         acc + (cls.students?.length || 0), 0
       ) || 0,
       color: "from-emerald-500 to-teal-500",
@@ -82,16 +100,21 @@ const TeacherDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setTeacherData(prev => ({
-        ...prev,
-        classes: [...prev.classes, response.data]
-      }));
+      setClasses(prev => [...prev, response.data]);
       
       setShowClassForm(false);
       setNewClass({ name: '', description: '' });
     } catch (error) {
       console.error('Error creating class:', error);
     }
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('class_info');
+    setUserInfo(null);
+    navigate('/');
   };
 
   if (loading) {
@@ -110,21 +133,6 @@ const TeacherDashboard = () => {
     );
   }
 
-  useEffect(() => {
-    const storedUserInfo = localStorage.getItem('user_info');
-    if (storedUserInfo) {
-      setUserInfo(JSON.parse(storedUserInfo));
-    }
-  }, []);
-
-  const handleSignOut = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_info');
-    localStorage.removeItem('class_info');
-    setUserInfo(null);
-    navigate('/');
-  };
-
   return (
     <div className={`min-h-screen transition-all duration-500 ${
       darkMode 
@@ -133,12 +141,13 @@ const TeacherDashboard = () => {
     }`}>
       {/* Navbar */}
       <Navbar 
-      userInfo={userInfo}
-      onSignOut={handleSignOut}
-      darkMode={darkMode}
-      logo="./logo.png"
+        userInfo={userInfo}
+        onSignOut={handleSignOut}
+        darkMode={darkMode}
+        logo="./logo.png"
       />
-      {/* Sidebar */}
+      
+      {/* Sidebar - Keep it fixed */}
       <motion.div 
         initial={{ x: -300 }}
         animate={{ x: 0 }}
@@ -150,7 +159,7 @@ const TeacherDashboard = () => {
             animate={{ opacity: 1 }}
             className="text-xl font-bold mb-8"
           >
-            Welcome, {teacherData?.name}
+            Welcome, {userInfo?.name}
           </motion.h2>
           
           {/* Navigation Items */}
@@ -174,147 +183,164 @@ const TeacherDashboard = () => {
         </div>
       </motion.div>
 
-      {/* Main Content */}
-      <div className="ml-64 p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+      {/* Main Content - Add margin-left for sidebar and padding-top for navbar */}
+      <div className="ml-64 pt-20">
+        <motion.div 
+          className="p-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
         >
-          {activeTab === 'Dashboard' && (
-            <>
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {stats.map((stat, index) => (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            {activeTab === 'Dashboard' && (
+              <>
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  {stats.map((stat, index) => (
+                    <motion.div
+                      key={stat.title}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                      whileHover={{ scale: 1.02 }}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-2xl">{stat.icon}</span>
+                        <div className={`h-8 w-8 rounded-full bg-gradient-to-r ${stat.color} flex items-center justify-center`}>
+                          <span className="text-white text-xs">+{index + 1}%</span>
+                        </div>
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">{stat.title}</h3>
+                      <p className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                        {stat.value}
+                      </p>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Recent Activity */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <motion.div
-                    key={stat.title}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
                     className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
-                    whileHover={{ scale: 1.02 }}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
                   >
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-2xl">{stat.icon}</span>
-                      <div className={`h-8 w-8 rounded-full bg-gradient-to-r ${stat.color} flex items-center justify-center`}>
-                        <span className="text-white text-xs">+{index + 1}%</span>
-                      </div>
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">{stat.title}</h3>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                      {stat.value}
-                    </p>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Recent Activity */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <motion.div
-                  className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
-                  <div className="space-y-4">
-                    {teacherData?.classes?.slice(0, 4).map((cls) => (
-                      <div key={cls.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors">
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white">
-                          {cls.name?.[0] || '?'}
+                    <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
+                    <div className="space-y-4">
+                      {classes?.slice(0, 4).map((cls) => (
+                        <div key={cls.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors">
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white">
+                            {cls.name?.[0] || '?'}
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{cls.name}</h4>
+                            <p className="text-sm opacity-70">{cls.students?.length || 0} students</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-medium">{cls.name}</h4>
-                          <p className="text-sm opacity-70">{cls.students?.length || 0} students</p>
+                      )) || (
+                        <div className="text-center text-gray-500">
+                          No classes yet
                         </div>
-                      </div>
-                    )) || (
-                      <div className="text-center text-gray-500">
-                        No classes yet
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <motion.button
-                      onClick={() => setShowClassForm(true)}
-                      className="p-4 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      Create New Class
-                    </motion.button>
-                    <motion.button
-                      className="p-4 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-medium"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      View Reports
-                    </motion.button>
-                    <motion.button
-                      className="p-4 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      Send Message
-                    </motion.button>
-                    <motion.button
-                      className="p-4 rounded-lg bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-medium"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      Schedule Event
-                    </motion.button>
-                  </div>
-                </motion.div>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'Classes' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">My Classes</h2>
-                <motion.button
-                  onClick={() => setShowClassForm(true)}
-                  className="px-4 py-2 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  Create New Class
-                </motion.button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {teacherData?.classes?.map(cls => (
-                  <motion.div 
-                    key={cls.id}
-                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
-                    whileHover={{ scale: 1.02 }}
-                  >
-                    <h3 className="text-xl font-semibold mb-2">{cls.name}</h3>
-                    <p className="mb-4 opacity-80">{cls.description}</p>
-                    <div className="flex justify-between items-center">
-                      <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-500">
-                        Code: {cls.access_code || cls.joinCode || 'No code available'}
-                      </span>
-                      <span className="text-sm opacity-80">
-                        {cls.students?.length || 0} students
-                      </span>
+                      )}
                     </div>
                   </motion.div>
-                ))}
+
+                  <motion.div
+                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <h3 className="text-xl font-semibold mb-4">Quick Actions</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <motion.button
+                        onClick={() => setShowClassForm(true)}
+                        className="p-4 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        Create New Class
+                      </motion.button>
+                      <motion.button
+                        className="p-4 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-medium"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        View Reports
+                      </motion.button>
+                      <motion.button
+                        className="p-4 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        Send Message
+                      </motion.button>
+                      <motion.button
+                        className="p-4 rounded-lg bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-medium"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        Schedule Event
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'Classes' && (
+              <div className="space-y-6">
+                {!selectedClass ? (
+                  <>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-bold">My Classes</h2>
+                      <motion.button
+                        onClick={() => setShowClassForm(true)}
+                        className="px-4 py-2 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Create New Class
+                      </motion.button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {classes?.map(cls => (
+                        <motion.div 
+                          key={cls.id}
+                          className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl cursor-pointer"
+                          whileHover={{ scale: 1.02 }}
+                          onClick={() => setSelectedClass(cls)}
+                        >
+                          <h3 className="text-xl font-semibold mb-2">{cls.name}</h3>
+                          <p className="mb-4 opacity-80">{cls.description}</p>
+                          <div className="flex justify-between items-center">
+                            <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-500">
+                              Code: {cls.access_code || cls.joinCode || 'No code available'}
+                            </span>
+                            <span className="text-sm opacity-80">
+                              {cls.students?.length || 0} students
+                            </span>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <ClassDetails
+                    classData={selectedClass}
+                    darkMode={darkMode}
+                    onBack={() => setSelectedClass(null)}
+                  />
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </motion.div>
         </motion.div>
       </div>
 
