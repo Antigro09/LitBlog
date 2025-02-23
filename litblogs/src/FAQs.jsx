@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import './App.css';
+import './LitBlogs.css'; // Import your styles
 
 const FAQs = () => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
