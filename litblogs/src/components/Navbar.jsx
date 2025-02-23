@@ -12,7 +12,9 @@ const Navbar = ({
     { to: "/", label: "Home" },
     { to: "/tambellini", label: "Ms. Tambellini's English 10" },
     { to: "/musk", label: "Ms. Musk's English 9" },
-    { to: "/help", label: "Help" }
+    { to: "/help", label: "Help" },
+    { to: "/FAQs", label: "FAQs" }
+
   ]
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
