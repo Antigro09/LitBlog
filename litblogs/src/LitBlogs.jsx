@@ -91,7 +91,7 @@ const LitBlogs = () => {
       darkMode={darkMode}
       logo="./logo.png"
       />
-
+      
       {/* Toggle Dark Mode Button */}
       <motion.div
         className="absolute top-5 right-4 z-10 transition-transform transform hover:scale-110"
@@ -250,20 +250,8 @@ const LitBlogs = () => {
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold mb-6">Join Our Writing Community</h2>
           <p className={`text-${darkMode ? 'gray-400' : 'gray-600'} mb-8`}>
-            Get weekly writing tips, industry insights, and exclusive content.
+            Get weekly writing tips and help from professionals
           </p>
-          <form
-            onSubmit={handleNewsletterSubmit}
-            className="flex flex-col md:flex-row gap-4 max-w-md mx-auto"
-          >
-            <input
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`flex-1 px-6 py-3 rounded-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} border focus:outline-none focus:ring-2 focus:ring-blue-500`}
-              required
-            />
             <motion.button
               type="submit"
               className={`px-8 py-3 ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-full transition-colors`}
@@ -286,7 +274,6 @@ const LitBlogs = () => {
             >
               Subscribe
             </motion.button>
-          </form>
           {newsletterMessage && (
             <motion.p
               className={`mt-4 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}
