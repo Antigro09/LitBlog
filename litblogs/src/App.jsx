@@ -11,6 +11,7 @@ import RoleSelection from "./RoleSelection";
 import AdminDashboard from "./AdminDashboard";
 import PostView from "./PostView";
 import StudentHub from "./StudentHub";
+import FAQs from "./FAQs";
 
 function App() {
   return (

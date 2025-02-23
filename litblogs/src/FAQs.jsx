@@ -4,6 +4,8 @@ import './LitBlogs.css'; // Import your styles
 
 const FAQs = () => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  console.log("Component is rendering"); // Check browser console
+
   const faqItems = [
     {
       question: "How can I join my teacher’s class?",
