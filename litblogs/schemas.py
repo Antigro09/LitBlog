@@ -13,6 +13,10 @@ class BlogBase(BaseModel):
 class BlogCreate(BaseModel):
     title: str
     content: str
+    code_snippets: List[dict] | None = None
+    media: List[dict] | None = None
+    polls: List[dict] | None = None
+    files: List[dict] | None = None
 
 class BlogResponse(BaseModel):
     id: int
@@ -101,3 +105,19 @@ class TeacherCreate(BaseModel):
 class Teacher(TeacherBase):
     class Config:
         orm_mode = True
+
+class CodeSnippet(BaseModel):
+    language: str
+    code: str
+
+class Media(BaseModel):
+    type: str  # 'image', 'gif', 'video'
+    url: str
+    alt: str | None = None
+
+class Poll(BaseModel):
+    options: List[str]
+
+class File(BaseModel):
+    name: str
+    url: str

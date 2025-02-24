@@ -67,137 +67,23 @@ const codeStyles = `
     margin: 1rem 0;
     border-radius: 0.5rem;
     overflow: hidden;
-    border: 1px solid rgba(0,0,0,0.1);
-  }
-
-  .dark .code-snippet {
-    border-color: rgba(255,255,255,0.1);
+    background: #2d2d2d;
   }
 
   .code-header {
     padding: 0.5rem 1rem;
-    background: rgba(0,0,0,0.05);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .dark .code-header {
-    background: rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
   }
 
   .code-snippet pre {
     margin: 0;
     padding: 1rem;
-    background: rgba(0,0,0,0.02);
-    overflow-x: auto;
-    max-height: 250px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0,0,0,0.3) transparent;
-  }
-
-  .dark .code-snippet pre {
-    background: rgba(0,0,0,0.3);
-    scrollbar-color: rgba(255,255,255,0.3) transparent;
-  }
-
-  .code-snippet pre::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  .code-snippet pre::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .code-snippet pre::-webkit-scrollbar-thumb {
-    background-color: rgba(0,0,0,0.3);
-    border-radius: 4px;
-  }
-
-  .dark .code-snippet pre::-webkit-scrollbar-thumb {
-    background-color: rgba(255,255,255,0.3);
   }
 
   .code-snippet code {
-    font-family: monospace;
+    font-family: 'Fira Code', monospace;
     font-size: 0.9em;
-    white-space: pre;
-  }
-
-  .token.comment,
-  .token.prolog,
-  .token.doctype,
-  .token.cdata {
-    color: #8292a2;
-  }
-
-  .token.punctuation {
-    color: #f8f8f2;
-  }
-
-  .token.namespace {
-    opacity: .7;
-  }
-
-  .token.property,
-  .token.tag,
-  .token.constant,
-  .token.symbol,
-  .token.deleted {
-    color: #f92672;
-  }
-
-  .token.boolean,
-  .token.number {
-    color: #ae81ff;
-  }
-
-  .token.selector,
-  .token.attr-name,
-  .token.string,
-  .token.char,
-  .token.builtin,
-  .token.inserted {
-    color: #a6e22e;
-  }
-
-  .token.operator,
-  .token.entity,
-  .token.url,
-  .language-css .token.string,
-  .style .token.string,
-  .token.variable {
-    color: #f8f8f2;
-  }
-
-  .token.atrule,
-  .token.attr-value,
-  .token.function,
-  .token.class-name {
-    color: #e6db74;
-  }
-
-  .token.keyword {
-    color: #66d9ef;
-  }
-
-  .token.regex,
-  .token.important {
-    color: #fd971f;
-  }
-
-  .token.important,
-  .token.bold {
-    font-weight: bold;
-  }
-
-  .token.italic {
-    font-style: italic;
-  }
-
-  .token.entity {
-    cursor: help;
   }
 `;
 
@@ -261,6 +147,57 @@ const MOCK_POSTS = [
   // ... other mock posts
 ];
 
+const MediaPreview = ({ media, files, onRemove }) => {
+  return (
+    <div className="space-y-4 mt-4">
+      {/* GIFs and Images */}
+      <div className="flex flex-wrap gap-4">
+        {media.map((item, index) => (
+          <div key={index} className="relative group">
+            <img 
+              src={item.url} 
+              alt={item.alt} 
+              className="h-32 w-32 object-cover rounded-lg"
+            />
+            <button
+              onClick={() => onRemove('media', index)}
+              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Files */}
+      {files.length > 0 && (
+        <div className="space-y-2">
+          {files.map((file, index) => (
+            <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>{file.name}</span>
+              </div>
+              <button
+                onClick={() => onRemove('files', index)}
+                className="text-red-500 hover:text-red-600"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ClassFeed = () => {
   // Move all useState hooks to the top
   const { classId } = useParams();
@@ -291,7 +228,8 @@ const ClassFeed = () => {
     text: "",
     media: [],
     expandableLists: [],
-    codeSnippets: []
+    codeSnippets: [],
+    files: []
   });
   const [activeCategory, setActiveCategory] = useState('all');
   const [activePostMenu, setActivePostMenu] = useState(null);
@@ -395,33 +333,46 @@ const ClassFeed = () => {
     try {
       const token = localStorage.getItem('token');
       
-      if (editingPostId) {
-        // Update existing post
-        await axios.put(
-          `http://localhost:8000/api/classes/${classId}/posts/${editingPostId}`,
-          {
-            title: postTitle,
-            content: postContent.text,
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-      } else {
-        // Create new post
-        await axios.post(
-          `http://localhost:8000/api/classes/${classId}/posts`,
-          {
-            title: postTitle,
-            content: postContent.text,
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
+      // Format the post content with all rich elements
+      let formattedContent = postContent.text;
+
+      // Add media (images, GIFs)
+      postContent.media.forEach(media => {
+        if (media.type === 'gif') {
+          formattedContent += `\n[GIF:${media.url}]\n`;
+        } else if (media.type === 'image') {
+          formattedContent += `\n[IMAGE:${media.url}]\n`;
+        }
+      });
+
+      // Add polls
+      if (showPollForm && pollOptions.length > 0) {
+        const validOptions = pollOptions.filter(opt => opt.trim());
+        if (validOptions.length > 0) {
+          formattedContent += `\n[POLL:${validOptions.join(',')}]\n`;
+        }
       }
 
-      // Refresh posts after creation/update
+      // Add expandable lists
+      postContent.expandableLists.forEach(list => {
+        formattedContent += `\n[EXPANDABLE:${list.title}]${list.content}\n`;
+      });
+
+      const response = await axios.post(
+        `http://localhost:8000/api/classes/${classId}/posts`,
+        {
+          title: postTitle,
+          content: formattedContent,
+          media: postContent.media,
+          polls: showPollForm ? [{ options: pollOptions.filter(opt => opt.trim()) }] : [],
+          files: postContent.files
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      // Refresh posts after creation
       const postsResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -434,11 +385,13 @@ const ClassFeed = () => {
         text: "",
         media: [],
         expandableLists: [],
-        codeSnippets: []
+        codeSnippets: [],
+        files: []
       });
-      setEditingPostId(null);  // Reset editing state
+      setPollOptions(['', '']);
+      setShowPollForm(false);
     } catch (error) {
-      console.error('Error with post:', error);
+      console.error('Error creating post:', error);
     }
   };
 
@@ -511,10 +464,9 @@ const ClassFeed = () => {
         });
         setPostContent(prev => ({
           ...prev,
-          media: [...prev.media, {
-            type: 'file',
-            url: response.data.url,
-            alt: file.name
+          files: [...prev.files, {
+            name: file.name,
+            url: response.data.url
           }]
         }));
       } catch (error) {
@@ -598,19 +550,59 @@ const ClassFeed = () => {
   };
 
   const handleCodeSubmit = () => {
-    if (!codeContent.trim()) return; // Don't add empty code snippets
+    if (!codeContent.trim()) return;
     
+    // Add code directly to the text content instead of keeping it separate
     setPostContent(prev => ({
       ...prev,
-      codeSnippets: [...prev.codeSnippets, {
-        id: Date.now(),
-        language: codeLanguage,
-        code: codeContent
-      }]
+      text: prev.text + `\n[CODE:${codeLanguage}]${codeContent}\n`
     }));
+    
     setShowCodeEditor(false);
     setCodeContent('');
-    setCodeLanguage('javascript'); // Reset to default language
+    setCodeLanguage('javascript');
+  };
+
+  const handleRemoveMedia = (type, index) => {
+    setPostContent(prev => ({
+      ...prev,
+      [type]: prev[type].filter((_, i) => i !== index)
+    }));
+  };
+
+  // Add this helper function near the top of your file
+  const renderContent = (content) => {
+    // Split content by custom markers
+    const parts = content.split(/(\[(?:CODE|GIF|POLL|FILE|IMAGE):.+?\])/g);
+
+    return parts.map((part, index) => {
+      // Check for special content markers
+      if (part.startsWith('[CODE:')) {
+        const language = part.match(/\[CODE:(\w+)\]/)?.[1] || 'javascript';
+        const code = part.replace(/\[CODE:\w+\]/, '').trim();
+        return (
+          <div key={index} className="code-snippet my-4">
+            <div className="code-header">
+              <span className="text-sm font-mono">{language}</span>
+            </div>
+            <pre>
+              <code className={`language-${language}`}>
+                {code}
+              </code>
+            </pre>
+          </div>
+        );
+      }
+      
+      // ... other content type handlers ...
+
+      // Regular text content
+      return (
+        <p key={index} className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
+          {part}
+        </p>
+      );
+    });
   };
 
   if (loading) {
@@ -646,7 +638,8 @@ const ClassFeed = () => {
       text: post.content,
       media: [],
       expandableLists: [],
-      codeSnippets: []
+      codeSnippets: [],
+      files: []
     });
     setShowNewPostForm(true);
     setActivePostMenu(null);
@@ -860,7 +853,9 @@ const ClassFeed = () => {
 
                   {/* Post Title and Preview */}
                   <h2 className="text-xl font-semibold mb-2 dark:text-white">{post.title}</h2>
-                  <p className="text-gray-600 dark:text-gray-300 line-clamp-3 whitespace-pre-wrap">{post.content}</p>
+                  <div className="prose dark:prose-invert max-w-none">
+                    {renderContent(post.content)}
+                  </div>
 
                   {/* Post Stats */}
                   <div className="mt-4 flex items-center space-x-4 text-gray-500 dark:text-gray-400">
@@ -964,6 +959,13 @@ const ClassFeed = () => {
                     rows="6"
                     placeholder="Write your post here. Add photos, videos and more to get your message across."
                     required
+                  />
+                  
+                  {/* Add the MediaPreview component here */}
+                  <MediaPreview 
+                    media={postContent.media}
+                    files={postContent.files}
+                    onRemove={handleRemoveMedia}
                   />
                   
                   {/* Code Snippets Display */}

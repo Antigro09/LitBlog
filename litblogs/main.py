@@ -377,6 +377,14 @@ async def get_class_details(
         ]
     }
 
+# Add these new models to handle rich content
+class PostContent(BaseModel):
+    text: str
+    code_snippets: List[dict] = []
+    media: List[dict] = []
+    polls: List[dict] = []
+    expandable_lists: List[dict] = []
+
 @app.post("/api/classes/{class_id}/posts", response_model=schemas.BlogResponse)
 async def create_class_post(
     class_id: int,
@@ -393,10 +401,37 @@ async def create_class_post(
         if not enrollment:
             raise HTTPException(status_code=403, detail="Not enrolled in this class")
     
-    # Create new post - content will preserve whitespace automatically
+    # Process rich content
+    content = post.content
+    
+    # Handle code snippets
+    if hasattr(post, 'code_snippets'):
+        for snippet in post.code_snippets:
+            content += f"\n[CODE:{snippet['language']}]{snippet['code']}\n"
+    
+    # Handle media (images, GIFs)
+    if hasattr(post, 'media'):
+        for media in post.media:
+            if media['type'] == 'gif':
+                content += f"\n[GIF:{media['url']}]\n"
+            elif media['type'] == 'image':
+                content += f"\n[IMAGE:{media['url']}]\n"
+    
+    # Handle polls
+    if hasattr(post, 'polls'):
+        for poll in post.polls:
+            options = ','.join(poll['options'])
+            content += f"\n[POLL:{options}]\n"
+    
+    # Handle files
+    if hasattr(post, 'files'):
+        for file in post.files:
+            content += f"\n[FILE:{file['name']}|{file['url']}]\n"
+    
+    # Create new post with processed content
     new_post = models.Blog(
         title=post.title,
-        content=post.content,  # SQLAlchemy will preserve whitespace by default
+        content=content,
         owner_id=current_user.id,
         class_id=class_id
     )
@@ -405,11 +440,10 @@ async def create_class_post(
     db.commit()
     db.refresh(new_post)
     
-    # Return post with all fields
     return {
         "id": new_post.id,
         "title": new_post.title,
-        "content": new_post.content,  # Whitespace will be preserved
+        "content": new_post.content,
         "created_at": new_post.created_at,
         "owner_id": new_post.owner_id,
         "class_id": new_post.class_id,
@@ -625,14 +659,15 @@ async def get_class_post(
     # Get the author's information
     author = db.query(models.User).filter(models.User.id == post.owner_id).first()
     
-    # Return post with author info
+    # Return post with author info and content
     return {
         **post.__dict__,
         "author": {
             "id": author.id,
             "first_name": author.first_name,
             "last_name": author.last_name
-        }
+        },
+        "content": post.content  # Content already includes the markers
     }
 
 @app.put("/api/classes/{class_id}/posts/{post_id}")
