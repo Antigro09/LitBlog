@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from './components/Navbar';
 import './LitBlogs.css'; // Import your styles
+import FAQ from './components/FAQ';
 
 const Help = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -420,6 +421,8 @@ const Help = () => {
           </div>
         </div>
       </section>
+      {/* FAQ */}
+      <FAQ darkMode={darkMode} />
       {/* Contact Us */}
       <div className="mt-10 max-w-4xl mx-auto text-center px-4 sm:px-6" id="target-section">
         <h2 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">

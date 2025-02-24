@@ -11,7 +11,6 @@ import RoleSelection from "./RoleSelection";
 import AdminDashboard from "./AdminDashboard";
 import PostView from "./PostView";
 import StudentHub from "./StudentHub";
-import FAQs from './FAQs';
 
 function App() {
   return (
@@ -30,7 +29,6 @@ function App() {
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/class/:classId/post/:postId" element={<PostView />} />
         <Route path="/student-hub" element={<StudentHub />} />
-        <Route path="/FAQs" element={<FAQs />} />
       </Routes>
     </Router>
   );
