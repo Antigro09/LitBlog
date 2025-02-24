@@ -262,6 +262,7 @@ const MOCK_POSTS = [
 ];
 
 const ClassFeed = () => {
+  // Move all useState hooks to the top
   const { classId } = useParams();
   const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState(null);
@@ -292,9 +293,13 @@ const ClassFeed = () => {
     expandableLists: [],
     codeSnippets: []
   });
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [activePostMenu, setActivePostMenu] = useState(null);
+  const [editingPostId, setEditingPostId] = useState(null);
 
   const gf = new GiphyFetch('FEzk8anVjSKZIiInlJWd4Jo4OuYBjV9B');
 
+  // Move all useEffect hooks together
   useEffect(() => {
     // Load user info
     const storedUserInfo = localStorage.getItem('user_info');
@@ -353,22 +358,70 @@ const ClassFeed = () => {
     }
   }, [postContent.codeSnippets]);
 
+  useEffect(() => {
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = expandableListStyles + codeStyles + glassStyles;
+    document.head.appendChild(styleSheet);
+
+    const handleExpandableClick = (e) => {
+      const header = e.target.closest('.expandable-header');
+      if (header) {
+        header.classList.toggle('collapsed');
+      }
+    };
+
+    document.addEventListener('click', handleExpandableClick);
+
+    return () => {
+      document.removeEventListener('click', handleExpandableClick);
+      styleSheet.remove();
+    };
+  }, []);
+
+  // Add the new useEffect for click outside menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (activePostMenu && !event.target.closest('.post-menu')) {
+        setActivePostMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activePostMenu]);
+
   const createPost = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      await axios.post(
-        `http://localhost:8000/api/classes/${classId}/posts`, 
-        {
-          title: postTitle,
-          content: postContent.text,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      
+      if (editingPostId) {
+        // Update existing post
+        await axios.put(
+          `http://localhost:8000/api/classes/${classId}/posts/${editingPostId}`,
+          {
+            title: postTitle,
+            content: postContent.text,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+      } else {
+        // Create new post
+        await axios.post(
+          `http://localhost:8000/api/classes/${classId}/posts`,
+          {
+            title: postTitle,
+            content: postContent.text,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+      }
 
-      // Fetch updated posts after creation
+      // Refresh posts after creation/update
       const postsResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -383,8 +436,9 @@ const ClassFeed = () => {
         expandableLists: [],
         codeSnippets: []
       });
+      setEditingPostId(null);  // Reset editing state
     } catch (error) {
-      console.error('Error creating post:', error);
+      console.error('Error with post:', error);
     }
   };
 
@@ -486,7 +540,12 @@ const ClassFeed = () => {
 
   const searchGifs = async (term) => {
     try {
-      const { data } = await gf.search(term, { limit: 10 });
+      const { data } = await gf.search(term, { 
+        limit: 10,
+        rating: 'g', // 'g' means content suitable for children
+        type: 'gifs',
+        lang: 'en'
+      });
       setGifs(data);
     } catch (error) {
       console.error('Error searching GIFs:', error);
@@ -554,27 +613,6 @@ const ClassFeed = () => {
     setCodeLanguage('javascript'); // Reset to default language
   };
 
-  useEffect(() => {
-    const styleSheet = document.createElement("style");
-    styleSheet.innerText = expandableListStyles + codeStyles + glassStyles;
-    document.head.appendChild(styleSheet);
-
-    // Add click handler for expandable lists
-    const handleExpandableClick = (e) => {
-      const header = e.target.closest('.expandable-header');
-      if (header) {
-        header.classList.toggle('collapsed');
-      }
-    };
-
-    document.addEventListener('click', handleExpandableClick);
-
-    return () => {
-      document.removeEventListener('click', handleExpandableClick);
-      styleSheet.remove();
-    };
-  }, []);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-gray-900 dark:to-gray-800">
@@ -601,6 +639,39 @@ const ClassFeed = () => {
     navigate('/');
   };
 
+  const handleEditPost = (post) => {
+    setEditingPostId(post.id);
+    setPostTitle(post.title);  // Set the title
+    setPostContent({
+      text: post.content,
+      media: [],
+      expandableLists: [],
+      codeSnippets: []
+    });
+    setShowNewPostForm(true);
+    setActivePostMenu(null);
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`http://localhost:8000/api/classes/${classId}/posts/${postId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        // Refresh posts after deletion
+        const postsResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setPosts(postsResponse.data);
+      } catch (error) {
+        console.error('Error deleting post:', error);
+      }
+    }
+    setActivePostMenu(null);
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
@@ -611,146 +682,197 @@ const ClassFeed = () => {
       logo="./logo.png"
       />
 
-      {/* Add the new blog navigation below the main navbar */}
-      <div className={`border-b backdrop-blur-md bg-white/30 dark:bg-gray-800/30 ${
-        darkMode ? 'border-gray-700' : 'border-gray-200'
-      } mt-16 transition-all duration-300`}>
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <motion.div 
-              className="flex space-x-8"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+      {/* Side Panel */}
+      <div className="fixed left-0 top-16 h-full w-64 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md border-r border-gray-200 dark:border-gray-700 p-6">
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search posts..."
+              className={`w-full pl-10 pr-4 py-2 rounded-lg border ${
+                darkMode 
+                  ? 'bg-gray-700 border-gray-600 text-white' 
+                  : 'bg-white border-gray-200'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            />
+            <svg
+              className="absolute left-3 top-2.5 w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <motion.span 
-                className="font-medium cursor-pointer hover:text-blue-500 transition-colors duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Categories
-              </motion.span>
-              <motion.span 
-                className="font-medium cursor-pointer hover:text-blue-500 transition-colors duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                All Posts
-              </motion.span>
-              <motion.span 
-                className="font-medium cursor-pointer hover:text-blue-500 transition-colors duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                My Posts
-              </motion.span>
-            </motion.div>
-            <motion.div 
-              className="flex items-center space-x-4"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <input
-                type="search"
-                placeholder="Search"
-                className={`rounded-lg px-4 py-2 ${
-                  darkMode 
-                    ? 'bg-gray-800/50 border-gray-700' 
-                    : 'bg-white/50 border-gray-300'
-                } border backdrop-blur-sm transition-all duration-300 focus:ring-2 focus:ring-blue-500 hover:bg-opacity-70`}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
-            </motion.div>
+            </svg>
           </div>
+        </div>
+
+        {/* Categories */}
+        <div className="space-y-2">
+          <button
+            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+              activeCategory === 'all'
+                ? 'bg-blue-500 text-white'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+            onClick={() => setActiveCategory('all')}
+          >
+            All Posts
+          </button>
+          <button
+            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+              activeCategory === 'my'
+                ? 'bg-blue-500 text-white'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+            onClick={() => setActiveCategory('my')}
+          >
+            My Posts
+          </button>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6 mt-4">
-        {/* Blog Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-medium">COW Blogs</h1>
-            <div className="flex items-center space-x-2">
-              <span>Sort by:</span>
-              <select className={`rounded-lg px-3 py-1 ${
-                darkMode 
-                  ? 'bg-gray-800 border-gray-700' 
-                  : 'bg-white border-gray-300'
-                } border`}
+      {/* Main Content - Add margin for side panel */}
+      <div className="ml-64">
+        {/* Posts Feed */}
+        <div className="max-w-5xl mx-auto px-8 pt-32">
+          {/* Blog Header - Moved down */}
+          <div className="flex justify-between items-center mb-12">
+            <div className="flex items-center space-x-6">
+              <h1 className="text-2xl font-medium">
+                {classDetails?.name || 'Loading class...'}
+              </h1>
+              <div className="flex items-center space-x-3">
+                <span>Sort by:</span>
+                <select className={`rounded-lg py-2 ${
+                  darkMode 
+                    ? 'bg-gray-800 border-gray-700' 
+                    : 'bg-white border-gray-300'
+                  } border`}
+                >
+                  <option>Recent Activity</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center space-x-6">
+              <button 
+                onClick={() => setShowNewPostForm(false)}
+                className={`px-6 py-2 rounded-lg ${
+                  darkMode ? 'bg-gray-800' : 'bg-white'
+                } border border-gray-300 dark:border-gray-700`}
               >
-                <option>Recent Activity</option>
-              </select>
+                More Actions
+              </button>
+              <motion.button 
+                onClick={() => setShowNewPostForm(true)}
+                className={`px-6 py-2 rounded-lg text-white ${
+                  darkMode 
+                    ? 'bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500' 
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
+                } transition-all duration-300 shadow-lg hover:shadow-xl`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Create New Post
+              </motion.button>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <button 
-              onClick={() => setShowNewPostForm(false)}
-              className={`px-4 py-2 rounded-lg ${
-                darkMode ? 'bg-gray-800' : 'bg-white'
-              } border border-gray-300 dark:border-gray-700`}
-            >
-              More Actions
-            </button>
-            <motion.button 
-              onClick={() => setShowNewPostForm(true)}
-              className={`px-4 py-2 rounded-lg text-white ${
-                darkMode 
-                  ? 'bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500' 
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
-              } transition-all duration-300 shadow-lg hover:shadow-xl`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Create New Post
-            </motion.button>
-          </div>
-        </div>
 
-        {/* Posts Feed */}
-        <div className="max-w-4xl mx-auto pt-32 px-4">
-          <div className="space-y-6">
+          {/* Posts Grid */}
+          <div className="space-y-8">
             {posts.map((post) => (
               <motion.div
-              key={post.id}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow duration-300"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
-            >
-              <div className="p-6">
-                {/* Author Info */}
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
-                    
+                key={post.id}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
+              >
+                <div className="p-8">
+                  {/* Author Info with Menu */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+                        {post.author[0]}
+                      </div>
+                      <div>
+                        <h3 className="font-medium dark:text-white">
+                          <span>By {post.author}</span>
+                        </h3>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(post.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Post Menu - Only show for user's own posts */}
+                    {post.owner_id === userInfo?.id && (
+                      <div className="relative post-menu" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)}
+                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                        >
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                          </svg>
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {activePostMenu === post.id && (
+                          <div 
+                            className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-10"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="py-1">
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleEditPost(post);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                Edit Post
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeletePost(post.id);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                Delete Post
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h3 className="font-medium dark:text-white">
-                    <span>By {post.author}</span>
-                    </h3>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(post.created_at).toLocaleDateString()}
-                    </span>
+
+                  {/* Post Title and Preview */}
+                  <h2 className="text-xl font-semibold mb-2 dark:text-white">{post.title}</h2>
+                  <p className="text-gray-600 dark:text-gray-300 line-clamp-3 whitespace-pre-wrap">{post.content}</p>
+
+                  {/* Post Stats */}
+                  <div className="mt-4 flex items-center space-x-4 text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center space-x-1">
+                      <span>👍</span>
+                      <span>0</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span>💬</span>
+                      <span>0</span>
+                    </div>
                   </div>
                 </div>
-
-                {/* Post Title and Preview */}
-                <h2 className="text-xl font-semibold mb-2 dark:text-white">{post.title}</h2>
-                <p className="text-gray-600 dark:text-gray-300 line-clamp-3">{post.content}</p>
-
-                {/* Post Stats */}
-                <div className="mt-4 flex items-center space-x-4 text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center space-x-1">
-                    <span>👍</span>
-                    <span>0</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <span>💬</span>
-                    <span>0</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -832,7 +954,7 @@ const ClassFeed = () => {
                   <textarea
                     value={postContent.text}
                     onChange={(e) => setPostContent(prev => ({ ...prev, text: e.target.value }))}
-                    className={`w-full p-4 rounded-lg border ${
+                    className={`w-full p-4 rounded-lg border whitespace-pre-wrap ${
                       darkMode 
                         ? 'bg-gray-700 border-gray-600 text-white' 
                         : 'bg-white border-gray-300'
@@ -937,19 +1059,40 @@ const ClassFeed = () => {
 
                 {/* Media Buttons */}
                 <div className="flex gap-2">
-                  {/* Image Upload */}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="image-upload"
-                  />
-                  <label htmlFor="image-upload" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </label>
+                  {/* Image Upload/Camera */}
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      id="camera-capture"
+                    />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <div className="flex gap-2">
+                      {/* File Upload Button */}
+                      <label htmlFor="image-upload" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer" title="Upload Image">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </label>
+                      
+                      {/* Camera Capture Button */}
+                      <label htmlFor="camera-capture" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer" title="Take Photo">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </label>
+                    </div>
+                  </div>
 
                   {/* Video Upload */}
                   <input
@@ -1010,6 +1153,14 @@ const ClassFeed = () => {
                     </button>
                     {showGifPicker && (
                       <div className="absolute bottom-full right-0 mb-2 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-xl" style={{ width: '320px' }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Safe Search Enabled
+                          </span>
+                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                            School Safe
+                          </span>
+                        </div>
                         <input
                           type="text"
                           value={gifSearchTerm}
@@ -1019,7 +1170,7 @@ const ClassFeed = () => {
                               searchGifs(e.target.value);
                             }
                           }}
-                          placeholder="Search GIFs..."
+                          placeholder="Search school-appropriate GIFs..."
                           className={`w-full p-2 mb-2 rounded border ${
                             darkMode 
                               ? 'bg-gray-700 border-gray-600 text-white' 

@@ -151,7 +151,7 @@ const TeacherDashboard = () => {
       <motion.div 
         initial={{ x: -300 }}
         animate={{ x: 0 }}
-        className="fixed left-0 top-0 h-full w-64 backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border-r border-white/10 dark:border-gray-700/10"
+        className="fixed left-0 top-0 h-full w-64 backdrop-blur-md bg-gray-50/40 dark:bg-gray-800/10 border-r border-white/10 dark:border-gray-700/10"
       >
         <div className="p-6">
           <motion.h2 
@@ -205,7 +205,7 @@ const TeacherDashboard = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                      className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl hover:shadow-2xl transition-all duration-300`}
                       whileHover={{ scale: 1.02 }}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -215,7 +215,7 @@ const TeacherDashboard = () => {
                         </div>
                       </div>
                       <h3 className="text-lg font-semibold mb-2">{stat.title}</h3>
-                      <p className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      <p className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                         {stat.value}
                       </p>
                     </motion.div>
@@ -225,7 +225,7 @@ const TeacherDashboard = () => {
                 {/* Recent Activity */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <motion.div
-                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                    className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.4 }}
@@ -233,7 +233,7 @@ const TeacherDashboard = () => {
                     <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
                     <div className="space-y-4">
                       {classes?.slice(0, 4).map((cls) => (
-                        <div key={cls.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors">
+                        <div key={cls.id} className={`flex items-center gap-4 p-3 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}>
                           <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white">
                             {cls.name?.[0] || '?'}
                           </div>
@@ -251,7 +251,7 @@ const TeacherDashboard = () => {
                   </motion.div>
 
                   <motion.div
-                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl"
+                    className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-xl`}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.4 }}
@@ -313,7 +313,7 @@ const TeacherDashboard = () => {
                       {classes?.map(cls => (
                         <motion.div 
                           key={cls.id}
-                          className="p-6 rounded-lg backdrop-blur-md bg-white/10 dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl cursor-pointer"
+                          className="p-6 rounded-lg backdrop-blur-md bg-white dark:bg-gray-800/10 border border-white/10 dark:border-gray-700/10 shadow-xl cursor-pointer"
                           whileHover={{ scale: 1.02 }}
                           onClick={() => setSelectedClass(cls)}
                         >

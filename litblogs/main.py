@@ -325,9 +325,6 @@ async def get_class_details(
     if not class_:
         raise HTTPException(status_code=404, detail="Class not found")
     
-    # Get total posts for the class
-    total_posts = db.query(models.Blog).filter(models.Blog.class_id == class_id).count()
-    
     # Get students with their post counts
     students = []
     student_records = db.query(models.User).join(
@@ -337,20 +334,27 @@ async def get_class_details(
         models.ClassEnrollment.class_id == class_id
     ).all()
 
+    total_posts = 0
     for student in student_records:
         # Count posts for each student
         post_count = db.query(models.Blog).filter(
             models.Blog.owner_id == student.id,
             models.Blog.class_id == class_id
         ).count()
+        total_posts += post_count
         
         students.append({
             "id": student.id,
             "name": f"{student.first_name} {student.last_name}",
             "email": student.email,
             "username": student.username,
-            "posts_count": post_count  # Total posts for each student
+            "posts_count": post_count
         })
+    
+    # Get posts with author information
+    posts = db.query(models.Blog).filter(
+        models.Blog.class_id == class_id
+    ).order_by(models.Blog.created_at.desc()).all()
     
     # Format the response
     return {
@@ -358,8 +362,19 @@ async def get_class_details(
         "name": class_.name,
         "description": class_.description,
         "access_code": class_.access_code,
-        "total_posts": total_posts,  # Total posts for the whole class
         "students": students,
+        "total_posts": total_posts,  # Add total posts count
+        "posts": [
+            {
+                "id": post.id,
+                "title": post.title,
+                "content": post.content,
+                "author": f"{post.owner.first_name} {post.owner.last_name}",
+                "created_at": post.created_at,
+                "likes": len(post.likes) if hasattr(post, 'likes') else 0,
+                "comments": len(post.comments) if hasattr(post, 'comments') else 0
+            } for post in posts
+        ]
     }
 
 @app.post("/api/classes/{class_id}/posts", response_model=schemas.BlogResponse)
@@ -378,9 +393,10 @@ async def create_class_post(
         if not enrollment:
             raise HTTPException(status_code=403, detail="Not enrolled in this class")
     
+    # Create new post - content will preserve whitespace automatically
     new_post = models.Blog(
         title=post.title,
-        content=post.content,
+        content=post.content,  # SQLAlchemy will preserve whitespace by default
         owner_id=current_user.id,
         class_id=class_id
     )
@@ -389,11 +405,11 @@ async def create_class_post(
     db.commit()
     db.refresh(new_post)
     
-    # Return post with all required fields
+    # Return post with all fields
     return {
         "id": new_post.id,
         "title": new_post.title,
-        "content": new_post.content,
+        "content": new_post.content,  # Whitespace will be preserved
         "created_at": new_post.created_at,
         "owner_id": new_post.owner_id,
         "class_id": new_post.class_id,
@@ -429,7 +445,7 @@ async def get_class_posts(
         formatted_posts.append({
             "id": post.id,
             "title": post.title,
-            "content": post.content,
+            "content": post.content,  # Whitespace will be preserved
             "created_at": post.created_at,
             "author": f"{author.first_name} {author.last_name}" if author else "Unknown Author",
             "likes": len(post.likes) if hasattr(post, 'likes') else 0,
@@ -618,6 +634,74 @@ async def get_class_post(
             "last_name": author.last_name
         }
     }
+
+@app.put("/api/classes/{class_id}/posts/{post_id}")
+async def update_class_post(
+    class_id: int,
+    post_id: int,
+    post: schemas.BlogCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # Get the existing post
+    db_post = db.query(models.Blog).filter(
+        models.Blog.id == post_id,
+        models.Blog.class_id == class_id
+    ).first()
+    
+    if not db_post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if user owns the post
+    if db_post.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this post")
+    
+    # Update the post
+    db_post.title = post.title
+    db_post.content = post.content
+    db_post.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(db_post)
+    
+    # Return updated post
+    return {
+        "id": db_post.id,
+        "title": db_post.title,
+        "content": db_post.content,
+        "created_at": db_post.created_at,
+        "owner_id": db_post.owner_id,
+        "class_id": db_post.class_id,
+        "author": f"{current_user.first_name} {current_user.last_name}",
+        "likes": len(db_post.likes) if hasattr(db_post, 'likes') else 0,
+        "comments": len(db_post.comments) if hasattr(db_post, 'comments') else 0
+    }
+
+@app.delete("/api/classes/{class_id}/posts/{post_id}")
+async def delete_class_post(
+    class_id: int,
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # Get the post
+    post = db.query(models.Blog).filter(
+        models.Blog.id == post_id,
+        models.Blog.class_id == class_id
+    ).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if user owns the post
+    if post.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this post")
+    
+    # Delete the post
+    db.delete(post)
+    db.commit()
+    
+    return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
 @app.on_event("startup")

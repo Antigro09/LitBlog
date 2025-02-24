@@ -10,8 +10,42 @@ const PostView = () => {
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
+  const [darkMode, setDarkMode] = useState(false);
+
+  const toggleDarkMode = () => {
+    setDarkMode((prevDarkMode) => {
+      const newDarkMode = !prevDarkMode;
+      localStorage.setItem('darkMode', JSON.stringify(newDarkMode));
+      return newDarkMode;
+    });
+  };
 
   useEffect(() => {
+    const storedDarkMode = JSON.parse(localStorage.getItem('darkMode'));
+    if (storedDarkMode !== null) {
+      setDarkMode(storedDarkMode);
+    } else {
+      const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setDarkMode(systemPrefersDark);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [darkMode]);
+
+  useEffect(() => {
+    // Load user info
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+
     const fetchPost = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -21,13 +55,21 @@ const PostView = () => {
         setPost(response.data);
         setLoading(false);
       } catch (error) {
-        setError('Failed to load post');
+        setError(error.response?.data?.detail || 'Failed to load post');
         setLoading(false);
       }
     };
 
     fetchPost();
   }, [classId, postId]);
+
+  const handleBack = () => {
+    if (userInfo?.role === 'TEACHER') {
+      navigate('/teacher-dashboard');
+    } else {
+      navigate(`/class-feed/${classId}`);
+    }
+  };
 
   if (loading) {
     return (
@@ -46,7 +88,7 @@ const PostView = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className={`min-h-screen ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       <div className="max-w-4xl mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -55,15 +97,16 @@ const PostView = () => {
         >
           {/* Back Button */}
           <div className="p-4 border-b dark:border-gray-700">
-            <button
-              onClick={() => navigate(`/class-feed/${classId}`)}
-              className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            <motion.button
+              onClick={handleBack}
+              className="flex items-center gap-2 text-blue-500 hover:text-blue-600"
+              whileHover={{ x: -5 }}
             >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Back to Class
-            </button>
+              {userInfo?.role === 'TEACHER' ? 'Back to Dashboard' : 'Back to Class'}
+            </motion.button>
           </div>
 
           {/* Post Content */}
@@ -86,7 +129,7 @@ const PostView = () => {
             {/* Post Title and Content */}
             <h1 className="text-3xl font-bold mb-4 dark:text-white">{post.title}</h1>
             <div className="prose dark:prose-invert max-w-none">
-              <p className="text-gray-600 dark:text-gray-300">{post.content}</p>
+              <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{post.content}</p>
             </div>
 
             {/* Interactions */}
