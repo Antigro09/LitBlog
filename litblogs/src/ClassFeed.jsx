@@ -675,15 +675,15 @@ const ClassFeed = () => {
   return (
     <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
-      <Navbar 
-      userInfo={userInfo}
-      onSignOut={handleSignOut}
-      darkMode={darkMode}
-      logo="./logo.png"
+      <Navbar
+        userInfo={userInfo}
+        onSignOut={handleSignOut}
+        darkMode={darkMode}
+        logo="/logo.png"
       />
 
       {/* Side Panel */}
-      <div className="fixed left-0 top-16 h-full w-64 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md border-r border-gray-200 dark:border-gray-700 p-6">
+      <div className="fixed left-0 h-full w-64 bg-gray-50/70 dark:bg-gray-800/50 backdrop-blur-md border-r border-gray-200 dark:border-gray-700 p-6">
         {/* Search Bar */}
         <div className="mb-6">
           <div className="relative">
@@ -792,6 +792,8 @@ const ClassFeed = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
+                whileHover={{ scale: 1.01, duration: 0.5 }}
+                whileTap={{ scale: 0.98, duration: 0.5 }}
               >
                 <div className="p-8">
                   {/* Author Info with Menu */}

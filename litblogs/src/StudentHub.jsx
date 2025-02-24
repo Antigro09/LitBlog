@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import Loader from './components/Loader';
+import Navbar from './components/Navbar';
 
 const StudentHub = () => {
   const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
+  const [userInfo, setUserInfo] = useState(null);
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [classCode, setClassCode] = useState('');
   const [loading, setLoading] = useState(true);
@@ -16,6 +18,21 @@ const StudentHub = () => {
   const [darkMode, setDarkMode] = useState(() => {
     return JSON.parse(localStorage.getItem('darkMode')) ?? false;
   });
+
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('class_info');
+    setUserInfo(null);
+    navigate('/');
+  };
 
   useEffect(() => {
     fetchClasses();
@@ -73,10 +90,16 @@ const StudentHub = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-gray-900 dark:to-gray-800">
+    <div className={`min-h-screen bg-gradient-to-br ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
+      <Navbar
+        userInfo={userInfo}
+        onSignOut={handleSignOut}
+        darkMode={darkMode}
+        logo="/logo.png"
+      />
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-64 bg-white/10 backdrop-blur-md min-h-screen p-4 border-r border-white/10">
+        <div className="w-64 bg-gray-50/60 dark:bg-gray-800/60 backdrop-blur-md min-h-screen p-4 border-r border-white/10">
           <div className="mb-8">
             <h2 className="text-xl font-bold mb-4">Navigation</h2>
             <div className="space-y-2">
@@ -124,7 +147,7 @@ const StudentHub = () => {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-8 mt-16">
           {activeTab === 'current' && (
             <div>
               <h1 className="text-3xl font-bold mb-6">Current Classes</h1>
@@ -132,7 +155,7 @@ const StudentHub = () => {
                 {classes.map((cls) => (
                   <motion.div
                     key={cls.id}
-                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 border border-white/10 shadow-xl"
+                    className="p-6 rounded-lg backdrop-blur-md bg-white/70 border dark:bg-slate-800/60 border-white/10 shadow-xl"
                     whileHover={{ scale: 1.02 }}
                     onClick={() => navigate(`/class-feed/${cls.id}`)}
                   >
@@ -163,7 +186,7 @@ const StudentHub = () => {
                 {posts.map((post) => (
                   <motion.div
                     key={post.id}
-                    className="p-6 rounded-lg backdrop-blur-md bg-white/10 border border-white/10 shadow-xl"
+                    className="p-6 rounded-lg backdrop-blur-md bg-gray-50/60 dark:bg-slate-800/60 border border-white/10 shadow-xl"
                     whileHover={{ scale: 1.01 }}
                   >
                     <h3 className="text-xl font-semibold mb-2">{post.title}</h3>

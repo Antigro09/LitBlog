@@ -194,7 +194,7 @@ const Help = () => {
       userInfo={userInfo}
       onSignOut={handleSignOut}
       darkMode={darkMode}
-      logo="./logo.png"
+      logo="/logo.png"
       />
 
       {/* Toggle Dark Mode Button */}
