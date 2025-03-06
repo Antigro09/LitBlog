@@ -94,3 +94,288 @@ input[type="range"]::-webkit-slider-thumb {
 video::-webkit-media-controls {
   display: none !important;
 }
+
+/* Remove all previous prose and color-related styles and replace with these */
+.prose {
+  max-width: none !important;
+}
+
+/* Base text color */
+.prose * {
+  color: rgb(17, 24, 39) !important; /* default text color */
+}
+
+/* Allow inline styles to override */
+.prose [style] {
+  color: unset !important;
+}
+
+.prose span[style*="color"] {
+  color: attr(style color) !important;
+}
+
+/* Dark mode */
+.dark .prose * {
+  color: rgb(229, 231, 235) !important; /* default dark mode text color */
+}
+
+.dark .prose [style] {
+  color: unset !important;
+}
+
+.dark .prose span[style*="color"] {
+  color: attr(style color) !important;
+}
+
+/* Force all styles to be inherited */
+.post-content {
+  max-width: none;
+  color: inherit;
+  font-family: inherit;
+}
+
+/* Ensure inline styles take precedence */
+.post-content [style] {
+  all: initial !important;
+  font-family: inherit !important;
+  display: inline !important;
+}
+
+/* Preserve the color attribute */
+.post-content [style*="color"] {
+  color: unset !important;
+}
+
+/* Override Tailwind's typography plugin */
+.post-content p, 
+.post-content span, 
+.post-content div {
+  color: inherit !important;
+}
+
+/* For elements with inline styles, let those win */
+.post-content p[style],
+.post-content span[style],
+.post-content div[style] {
+  color: unset !important;
+}
+
+/* Direct styles for content - highest specificity */
+.raw-content {
+  all: initial;
+  display: block;
+  font-family: inherit;
+  color: inherit;
+}
+
+.raw-content * {
+  font-family: inherit;
+}
+
+/* Force span colors */
+.raw-content span[style*="color"] {
+  color: attr(style color) !important;
+}
+
+.raw-content [data-color] {
+  color: attr(data-color) !important;
+}
+
+/* Make specific color styles */
+.raw-content span[style*="color: red"], 
+.raw-content span[style*="color:#ff0000"],
+.raw-content span[style*="color: #ff0000"] {
+  color: red !important;
+}
+
+.raw-content span[style*="color: blue"],
+.raw-content span[style*="color:#0000ff"],
+.raw-content span[style*="color: #0000ff"] {
+  color: blue !important;
+}
+
+/* Add more for other colors */
+
+/* Target TinyMCE's specific color format */
+span[style*="color: #e03e2d"] {
+  color: #e03e2d !important;
+}
+
+/* Target ALL colors more aggressively */
+[style*="color:"] {
+  color: currentColor !important;
+}
+
+span[style*="color"] {
+  color: currentColor !important;
+}
+
+/* Force color rendering - this will ensure colors show */
+.raw-content p span[style*="color"] {
+  display: inline !important;
+  font-family: inherit !important;
+  color: currentColor !important;
+}
+
+/* Override Tailwind's color handling */
+.raw-content-wrapper * {
+  color: inherit;
+}
+
+/* Direct inline style support */
+.raw-content-wrapper *[style] {
+  color: unset !important;
+}
+
+/* Add these styles to ensure inline styles are preserved */
+.preserve-styles {
+  font-family: inherit;
+  color: inherit;
+}
+
+.preserve-styles * {
+  font-family: inherit;
+}
+
+/* Override Tailwind's typography styles */
+.preserve-styles span[style*="color"] {
+  color: unset !important;
+  display: inline !important;
+}
+
+.preserve-styles p, 
+.preserve-styles div, 
+.preserve-styles span, 
+.preserve-styles strong, 
+.preserve-styles em, 
+.preserve-styles b, 
+.preserve-styles i, 
+.preserve-styles u, 
+.preserve-styles strike {
+  color: inherit !important;
+}
+
+/* Ensure elements with style attribute keep their original styles */
+.preserve-styles [style] {
+  all: revert !important;
+}
+
+/* Specifically target TinyMCE's color format */
+.preserve-styles span[style*="color: #e03e2d"] {
+  color: #e03e2d !important;
+}
+
+/* Handle dark mode */
+.dark .preserve-styles {
+  color: #e5e7eb;
+}
+
+.dark .preserve-styles [style*="color"] {
+  all: revert !important;
+}
+
+/* TinyMCE specific color handling */
+.tinymce-content span[style*="color: #e03e2d"] {
+  color: #e03e2d !important;
+  display: inline !important;
+}
+
+/* General color handling for TinyMCE */
+.tinymce-content span[style*="color:"] {
+  display: inline !important;
+  color: inherit !important; /* This will pull the color from the style attribute */
+}
+
+/* Force inline styles in TinyMCE content */
+.tinymce-content [style] {
+  all: initial !important;
+  display: inline !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+
+/* Override any text color in TinyMCE content */
+.tinymce-content * {
+  color: inherit;
+}
+
+/* Ensure colors work by using !important */
+.tinymce-content span[style*="color: rgb"],
+.tinymce-content span[style*="color: #"] {
+  color: var(--text-color, inherit) !important;
+}
+
+/* Handle the specific element TinyMCE is creating */
+span[data-mce-style*="color"],
+span[style*="color"] {
+  color: unset !important;
+}
+
+/* Clear all the existing color-related rules and use this simple approach */
+.html-content {
+  color: inherit;
+  font-family: inherit;
+}
+
+/* Force inline styles to work */
+.html-content span[style*="color"] {
+  color: unset !important;
+}
+
+/* Make the specific color work */
+span[style*="color: #e03e2d"] {
+  color: #e03e2d !important;
+}
+
+/* Add !important to all color-related inline styles */
+[style*="color:"] {
+  display: inline !important;
+}
+
+/* Add font-family support */
+.html-content span[style*="font-family"] {
+  font-family: unset !important;
+}
+
+/* Make sure inline styles take precedence */
+[style*="font-family:"] {
+  display: inline !important;
+}
+
+/* Force all fonts to be inherited from style attributes */
+.html-content * {
+  font-family: inherit;
+}
+
+.html-content [style*="font-family"] {
+  font-family: unset !important;
+}
+
+/* Add specific font-family declarations */
+[style*="font-family: 'Times New Roman'"],
+[style*="font-family: times new roman"],
+[style*='font-family: "Times New Roman"'] {
+  font-family: 'Times New Roman', Times, serif !important;
+}
+
+[style*="font-family: Arial"],
+[style*="font-family: arial"] {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+[style*="font-family: Georgia"],
+[style*="font-family: georgia"] {
+  font-family: Georgia, serif !important;
+}
+
+/* Additional font-specific styles for clear overrides */
+.html-content span[style*="font-family"] {
+  all: revert !important;
+  font-family: inherit !important;
+}
+
+/* Force application of font families at the highest level */
+span[style*="font-family:"] {
+  display: inline !important;
+  font-family: inherit !important;
+}

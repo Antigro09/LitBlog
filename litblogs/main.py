@@ -20,6 +20,9 @@ from pathlib import Path
 import random
 import string
 from models import User, Teacher  # Add this line
+from bs4 import BeautifulSoup
+import bleach
+from bleach.css_sanitizer import CSSSanitizer
 
 app = FastAPI()
 
@@ -304,77 +307,48 @@ async def get_class_details(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    # Get the class details
+    class_details = db.query(models.Class).filter(models.Class.id == class_id).first()
+    if not class_details:
+        raise HTTPException(status_code=404, detail="Class not found")
+
     # Check if user has access to this class
-    if current_user.role == models.UserRole.STUDENT:
+    if current_user.role == models.UserRole.TEACHER:
+        # Teachers can access classes they created
+        if class_details.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this class")
+    elif current_user.role == models.UserRole.STUDENT:
+        # Students can access classes they're enrolled in
         enrollment = db.query(models.ClassEnrollment).filter(
             models.ClassEnrollment.student_id == current_user.id,
             models.ClassEnrollment.class_id == class_id
         ).first()
         if not enrollment:
             raise HTTPException(status_code=403, detail="Not enrolled in this class")
-    elif current_user.role == models.UserRole.TEACHER:
-        class_ = db.query(models.Class).filter(
-            models.Class.id == class_id,
-            models.Class.teacher_id == current_user.id
-        ).first()
-        if not class_:
-            raise HTTPException(status_code=403, detail="Not authorized to access this class")
-    
-    # Get class details
-    class_ = db.query(models.Class).filter(models.Class.id == class_id).first()
-    if not class_:
-        raise HTTPException(status_code=404, detail="Class not found")
-    
-    # Get students with their post counts
-    students = []
-    student_records = db.query(models.User).join(
-        models.ClassEnrollment,
-        models.ClassEnrollment.student_id == models.User.id
-    ).filter(
-        models.ClassEnrollment.class_id == class_id
-    ).all()
+    else:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
-    total_posts = 0
-    for student in student_records:
-        # Count posts for each student
-        post_count = db.query(models.Blog).filter(
-            models.Blog.owner_id == student.id,
-            models.Blog.class_id == class_id
-        ).count()
-        total_posts += post_count
-        
-        students.append({
-            "id": student.id,
-            "name": f"{student.first_name} {student.last_name}",
-            "email": student.email,
-            "username": student.username,
-            "posts_count": post_count
-        })
-    
-    # Get posts with author information
-    posts = db.query(models.Blog).filter(
-        models.Blog.class_id == class_id
-    ).order_by(models.Blog.created_at.desc()).all()
-    
-    # Format the response
+    # Get the teacher info
+    teacher = db.query(models.User).filter(models.User.id == class_details.teacher_id).first()
+
+    # Get enrollment count
+    enrollment_count = db.query(models.ClassEnrollment).filter(
+        models.ClassEnrollment.class_id == class_id
+    ).count()
+
     return {
-        "id": class_.id,
-        "name": class_.name,
-        "description": class_.description,
-        "access_code": class_.access_code,
-        "students": students,
-        "total_posts": total_posts,  # Add total posts count
-        "posts": [
-            {
-                "id": post.id,
-                "title": post.title,
-                "content": post.content,
-                "author": f"{post.owner.first_name} {post.owner.last_name}",
-                "created_at": post.created_at,
-                "likes": len(post.likes) if hasattr(post, 'likes') else 0,
-                "comments": len(post.comments) if hasattr(post, 'comments') else 0
-            } for post in posts
-        ]
+        "id": class_details.id,
+        "name": class_details.name,
+        "description": class_details.description,
+        "access_code": class_details.access_code,
+        "teacher": {
+            "id": teacher.id,
+            "name": f"{teacher.first_name} {teacher.last_name}",
+            "email": teacher.email
+        },
+        "created_at": class_details.created_at,
+        "enrollment_count": enrollment_count,
+        "is_teacher": current_user.role == models.UserRole.TEACHER
     }
 
 # Add these new models to handle rich content
@@ -384,6 +358,46 @@ class PostContent(BaseModel):
     media: List[dict] = []
     polls: List[dict] = []
     expandable_lists: List[dict] = []
+
+def sanitize_html(content: str) -> str:
+    # Define allowed tags and attributes
+    ALLOWED_TAGS = [
+        'p', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'strong', 'em', 'u', 'strike', 'br', 'ul', 'ol', 'li',
+        'blockquote', 'pre', 'code', 'hr', 'a', 'img', 'table',
+        'thead', 'tbody', 'tr', 'th', 'td', 'style', 'b', 'i', 's',
+        'font', 'mark', 'del'
+    ]
+    
+    ALLOWED_ATTRIBUTES = {
+        '*': ['class', 'style', 'id', 'data-mce-style'],
+        'a': ['href', 'title', 'target'],
+        'img': ['src', 'alt', 'title'],
+        'td': ['colspan', 'rowspan'],
+        'th': ['colspan', 'rowspan', 'scope'],
+        'font': ['color', 'size', 'face'],
+        'p': ['align', 'style'],
+        'div': ['align', 'style'],
+        'span': ['style']
+    }
+    
+    # Define allowed CSS properties - add font-family explicitly
+    ALLOWED_STYLES = ['color', 'background-color', 'font-size', 'text-align', 'font-family']
+    
+    # Create a CSS sanitizer with allowed styles
+    css_sanitizer = CSSSanitizer(allowed_css_properties=ALLOWED_STYLES)
+    
+    # Create a Bleach cleaner with the allowed tags, attributes, and CSS sanitizer
+    cleaner = bleach.Cleaner(
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
+        css_sanitizer=css_sanitizer
+    )
+    
+    # Sanitize the content
+    sanitized_content = cleaner.clean(content)
+    
+    return sanitized_content
 
 @app.post("/api/classes/{class_id}/posts", response_model=schemas.BlogResponse)
 async def create_class_post(
@@ -401,30 +415,30 @@ async def create_class_post(
         if not enrollment:
             raise HTTPException(status_code=403, detail="Not enrolled in this class")
     
-    # Process rich content
-    content = post.content
+    # Sanitize the content while preserving styles
+    content = sanitize_html(post.content)
     
-    # Handle code snippets
-    if hasattr(post, 'code_snippets'):
+    # Process rich content markers
+    if post.code_snippets:
         for snippet in post.code_snippets:
             content += f"\n[CODE:{snippet['language']}]{snippet['code']}\n"
     
-    # Handle media (images, GIFs)
-    if hasattr(post, 'media'):
+    # Handle media (images, GIFs) if they exist
+    if post.media:
         for media in post.media:
             if media['type'] == 'gif':
                 content += f"\n[GIF:{media['url']}]\n"
             elif media['type'] == 'image':
                 content += f"\n[IMAGE:{media['url']}]\n"
     
-    # Handle polls
-    if hasattr(post, 'polls'):
+    # Handle polls if they exist
+    if post.polls:
         for poll in post.polls:
             options = ','.join(poll['options'])
             content += f"\n[POLL:{options}]\n"
     
-    # Handle files
-    if hasattr(post, 'files'):
+    # Handle files if they exist
+    if post.files:
         for file in post.files:
             content += f"\n[FILE:{file['name']}|{file['url']}]\n"
     
@@ -448,8 +462,8 @@ async def create_class_post(
         "owner_id": new_post.owner_id,
         "class_id": new_post.class_id,
         "author": f"{current_user.first_name} {current_user.last_name}",
-        "likes": 0,
-        "comments": 0
+        "likes": len(new_post.likes) if hasattr(new_post, 'likes') else 0,
+        "comments": len(new_post.comments) if hasattr(new_post, 'comments') else 0
     }
 
 @app.get("/api/classes/{class_id}/posts")
@@ -739,9 +753,9 @@ async def delete_class_post(
     return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
-@app.on_event("startup")
-async def startup_event():
-    reset_database()
+#@app.on_event("startup")
+#async def startup_event():
+    #reset_database()
 
 def generate_unique_code(db: Session, length: int = 6) -> str:
     while True:
@@ -835,6 +849,24 @@ async def get_student_posts(
         })
     
     return posts_with_class
+
+@app.get("/api/debug/post/{post_id}")
+async def debug_post_content(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    post = db.query(models.Blog).filter(models.Blog.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    return {
+        "raw_content": post.content,
+        "length": len(post.content)
+    }
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

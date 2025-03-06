@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "python -m uvicorn main:app --reload"
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.3.0",
@@ -20,6 +21,7 @@
     "@mui/material": "^6.4.4",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
+    "@tinymce/tinymce-react": "^6.0.0",
     "@types/prismjs": "^1.26.5",
     "axios": "^1.7.9",
     "emoji-picker-react": "^4.12.0",
@@ -27,8 +29,10 @@
     "prismjs": "^1.29.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-html-parser": "^2.0.2",
     "react-router-dom": "^7.1.5",
-    "styled-components": "^6.1.15"
+    "styled-components": "^6.1.15",
+    "tinymce": "^7.7.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",

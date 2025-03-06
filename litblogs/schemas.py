@@ -12,7 +12,7 @@ class BlogBase(BaseModel):
 
 class BlogCreate(BaseModel):
     title: str
-    content: str
+    content: str  # This will now contain HTML
     code_snippets: List[dict] | None = None
     media: List[dict] | None = None
     polls: List[dict] | None = None

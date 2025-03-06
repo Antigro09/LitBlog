@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from 'axios';
 import EmojiPicker from 'emoji-picker-react';
 import { GiphyFetch } from '@giphy/js-fetch-api';
-import { Grid as GiphyGrid, SearchBar, SearchContext, SearchContextManager } from '@giphy/react-components';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';  // Dark theme
 import 'prismjs/components/prism-core';
@@ -17,6 +16,8 @@ import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-sql';
 import Loader from './components/Loader';
 import Navbar from "./components/Navbar";
+import { Editor } from '@tinymce/tinymce-react';
+import './Litblogs.css';
 
 const expandableListStyles = `
   .expandable-list {
@@ -130,6 +131,41 @@ const glassStyles = `
   }
 `;
 
+const richTextStyles = `
+  .prose {
+    max-width: none;
+  }
+  
+  .prose p {
+    margin: 1em 0;
+  }
+  
+  .prose h1, .prose h2, .prose h3, .prose h4 {
+    margin: 1.5em 0 0.5em;
+    font-weight: 600;
+  }
+  
+  .prose ul, .prose ol {
+    margin: 1em 0;
+    padding-left: 1.5em;
+  }
+  
+  .prose li {
+    margin: 0.5em 0;
+  }
+  
+  .prose blockquote {
+    border-left: 4px solid #e5e7eb;
+    padding-left: 1em;
+    margin: 1em 0;
+    font-style: italic;
+  }
+  
+  .dark .prose blockquote {
+    border-left-color: #4b5563;
+  }
+`;
+
 // Add this after your imports
 Prism.manual = true;
 
@@ -196,6 +232,54 @@ const MediaPreview = ({ media, files, onRemove }) => {
       )}
     </div>
   );
+};
+
+const TINYMCE_CONFIG = {
+  height: 500,
+  menubar: false,
+  plugins: [
+    'advlist','typography','lists', 'link', 'image', 'charmap',
+    'searchreplace', 'code', 'fullscreen', 'table'
+  ],
+  toolbar: 'formatselect | forecolor backcolor blocks fontfamily fontsize| bold italic underline strikethrough| alignleft aligncenter alignright | bullist numlist | removeformat',
+  block_formats: 'Paragraph=p; Title=h1; Heading=h2; Subheading=h3; Small Heading=h4; Blockquote=blockquote',
+  forced_root_block: 'p',
+  content_style: `
+    body { 
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      margin: 1rem;
+    }
+    h1 { font-size: 1.8em; font-weight: bold; margin: 0.5em 0; }
+    h2 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; }
+    h3 { font-size: 1.3em; font-weight: bold; margin: 0.5em 0; }
+    h4 { font-size: 1.1em; font-weight: bold; margin: 0.5em 0; }
+    blockquote { border-left: 3px solid #ccc; margin-left: 1em; padding-left: 1em; font-style: italic; }
+    
+    /* Fix dropdown spacing */
+    .tox-collection__item-label {
+      padding-left: 4px !important;
+    }
+    .tox-collection__item-icon {
+      padding-right: 4px !important;
+    }
+    .tox-tbtn__select-label {
+      margin-left: 0 !important;
+    }
+  `,
+  statusbar: false,
+  extended_valid_elements: 'span[style|class]',
+  inline_styles: true,
+  paste_as_text: false,
+  paste_retain_style_properties: 'color,background-color,font-size',
+  browser_spellcheck: true,
+  font_formats: 'Arial=arial,helvetica,sans-serif;' + 
+                'Times New Roman=times new roman,times,serif;' +
+                'Courier New=courier new,courier,monospace;' +
+                'Georgia=georgia,serif;' +
+                'Tahoma=tahoma,arial,helvetica,sans-serif;' +
+                'Trebuchet MS=trebuchet ms,geneva,sans-serif;' +
+                'Verdana=verdana,geneva,sans-serif',
 };
 
 const ClassFeed = () => {
@@ -298,7 +382,7 @@ const ClassFeed = () => {
 
   useEffect(() => {
     const styleSheet = document.createElement("style");
-    styleSheet.innerText = expandableListStyles + codeStyles + glassStyles;
+    styleSheet.innerText = expandableListStyles + codeStyles + glassStyles + richTextStyles;
     document.head.appendChild(styleSheet);
 
     const handleExpandableClick = (e) => {
@@ -948,17 +1032,16 @@ const ClassFeed = () => {
 
                 {/* Content Input */}
                 <div className="relative">
-                  <textarea
+                  <Editor
+                    apiKey="edr7zffd9q7v6okan1ka9dbc23ugp710ycjhcfroxd9undjo"
+                    init={TINYMCE_CONFIG}
                     value={postContent.text}
-                    onChange={(e) => setPostContent(prev => ({ ...prev, text: e.target.value }))}
-                    className={`w-full p-4 rounded-lg border whitespace-pre-wrap ${
-                      darkMode 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
-                        : 'bg-white border-gray-300'
-                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[200px]`}
-                    rows="6"
-                    placeholder="Write your post here. Add photos, videos and more to get your message across."
-                    required
+                    onEditorChange={(content) => {
+                      setPostContent(prev => ({
+                        ...prev,
+                        text: content
+                      }));
+                    }}
                   />
                   
                   {/* Add the MediaPreview component here */}
