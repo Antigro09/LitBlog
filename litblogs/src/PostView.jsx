@@ -13,7 +13,7 @@ import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-csharp';
 import ReactHtmlParser from 'react-html-parser';
 import Loader from './components/Loader';
-import './Litblogs.css';
+import './LitBlogs.css';
 
 const processHtmlForStyles = (html) => {
   // First handle colors
