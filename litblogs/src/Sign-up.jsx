@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import './LitBlogs.css'; // Import any custom styles here
 import axios from 'axios';
 import Loader from './components/Loader';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { GoogleOAuthProvider, GoogleLogin, useGoogleLogin } from '@react-oauth/google';
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -175,6 +175,11 @@ const SignUp = () => {
     console.error('Google registration failed:', error);
     setErrorMessage('Google registration failed');
   };
+
+  const googleSignUp = useGoogleLogin({
+    onSuccess: handleGoogleSignUpSuccess,
+    onError: handleGoogleSignUpFailure,
+  });
 
   return (
     <GoogleOAuthProvider clientId="653922429771-qdjgvs7vkrcd7g4o2oea12t097ah4eog.apps.googleusercontent.com">
@@ -423,10 +428,21 @@ const SignUp = () => {
               whileTap={{ scale: 0.95 }}
             >
               <GoogleLogin
+                buttonText={'Sign up with Google'}
                 onSuccess={handleGoogleSignUpSuccess}
                 onError={handleGoogleSignUpFailure}
                 useOneTap
               />
+              {/* Custom Google Sign Up Button */}
+              <div className="mt-6 text-center">
+                <p className="text-sm mb-4">Or sign up with:</p>
+                <button
+                  onClick={() => googleSignUp()}
+                  className="w-full p-4 text-center text-white rounded-lg bg-red-600 hover:bg-red-700 transition-colors duration-300"
+                >
+                  Sign Up with Google
+                </button>
+              </div>
             </motion.div>
           </form>
 
