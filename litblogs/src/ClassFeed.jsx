@@ -17,7 +17,7 @@ import 'prismjs/components/prism-sql';
 import Loader from './components/Loader';
 import Navbar from "./components/Navbar";
 import { Editor } from '@tinymce/tinymce-react';
-import './Litblogs.css';
+import './LitBlogs.css';
 
 const expandableListStyles = `
   .expandable-list {

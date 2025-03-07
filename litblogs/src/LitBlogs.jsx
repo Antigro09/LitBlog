@@ -252,28 +252,30 @@ const LitBlogs = () => {
           <p className={`text-${darkMode ? 'gray-400' : 'gray-600'} mb-8`}>
             Get weekly writing tips and help from professionals
           </p>
-            <motion.button
-              type="submit"
-              className={`px-8 py-3 ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-full transition-colors`}
-              whileHover={{
-                scale: 1.05,
-                backgroundColor: "#1d4ed8",
-                transition: { duration: 0.2 } // Fast transition for hover
-              }}
-              whileTap={{
-                scale: 0.95,
-                transition: { duration: 0.1 } // Fast transition for tap
-              }}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                scale: { type: "spring", stiffness: 500, damping: 50 }, // Set transition for scaling
-                opacity: { duration: 0.8, delay: 0.4 },
-                y: { duration: 0.8, delay: 0.4 }
-              }}
-            >
-              Subscribe
-            </motion.button>
+          <motion.button
+                type="submit"
+                className={`px-8 py-3 ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-full transition-colors`}
+                onClick={() => window.open('https://drhswritingcenter.com/', '_blank')}
+                whileHover={{
+                  scale: 1.05,
+                  backgroundColor: "#1d4ed8",
+                  transition: { duration: 0.2 } // Fast transition for hover
+                }}
+                whileTap={{
+                  scale: 0.95,
+                  transition: { duration: 0.1 } // Fast transition for tap
+                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  scale: { type: "spring", stiffness: 500, damping: 50 }, // Set transition for scaling
+                  opacity: { duration: 0.8, delay: 0.4 },
+                  y: { duration: 0.8, delay: 0.4 }
+                }}
+          >
+            Subscribe
+          </motion.button>
+
           {newsletterMessage && (
             <motion.p
               className={`mt-4 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}
