@@ -106,48 +106,47 @@ const LitBlogs = () => {
       </motion.div>
 
       {/* Content */}
-      <section className="py-24 text-center overflow-visible">
-        <motion.h2
+      <section className="py-28 text-center overflow-visible">
+        <motion
           className="relative -top-2 text-5xl md:text-7xl font-bold mb-4 bg-gradient-text bg-clip-text text-transparent pt-2 pb-3"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
           Lit Up Your Thoughts
-        </motion.h2>
+        </motion>
         <motion.p
-          className="text-gray-600 dark:text-gray-400 text-xl mb-8 max-w-2xl mx-auto"
+          className="text-gray-600 dark:text-gray-400 text-xl mb-8 max-w-2xl mx-auto mt-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
           Collaborate with creative minds. Publish your stories, engage with readers, and join a thriving community of writers.
         </motion.p>
-        <Link to="/sign-in">
-        <motion.button
-          className="bg-blue-600 text-white px-8 py-4 rounded-full text-lg flex items-center mx-auto shadow-lg"
-          whileHover={{
-            scale: 1.05,
-            backgroundColor: "#2563eb",
-            transition: { duration: 0.2 } // Fast transition for hover
-          }}
-          whileTap={{
-            scale: 0.95,
-            transition: { duration: 0.1 } // Fast transition for tap
-          }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            scale: { type: "spring", stiffness: 500, damping: 30 }, // Set transition for scaling
-            opacity: { duration: 0.8, delay: 0.4 },
-            y: { duration: 0.8, delay: 0.4 }
-          }}
-        >
-          Start Writing Now
-          <svg className="w-5 h-5 ml-2 animate-bounce-horizontal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-          </svg>
-        </motion.button>
+        <Link to="/sign-in" className="inline-block">
+          <motion.button
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-full text-xl font-medium flex items-center justify-center shadow-xl"
+            whileHover={{
+              scale: 1.05,
+              transition: { duration: 0.1 } // Fast transition for hover
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              scale: { type: "spring", stiffness: 500, damping: 50 }, // Set transition for scaling
+              opacity: { duration: 0.8, delay: 0.4 },
+              y: { duration: 0.8, delay: 0.4 }
+            }}
+            whileTap={{
+              scale: 0.95,
+              transition: { duration: 0.1 }
+            }}
+          >
+            Start Writing Now
+            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </motion.button>
         </Link>
       </section>
 
@@ -273,9 +272,8 @@ const LitBlogs = () => {
                   y: { duration: 0.8, delay: 0.4 }
                 }}
           >
-            Subscribe
-          </motion.button>
-
+              Subscribe
+            </motion.button>
           {newsletterMessage && (
             <motion.p
               className={`mt-4 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}

@@ -878,5 +878,97 @@ async def debug_post_content(
         "length": len(post.content)
     }
 
+@app.post("/api/user/update-profile")
+async def update_profile(
+    profile_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Update user profile information"""
+    try:
+        # Get the user from database
+        user = db.query(models.User).filter(models.User.id == current_user.id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Update fields that are present in the request
+        if "bio" in profile_data:
+            user.bio = profile_data["bio"]
+        
+        # Update name fields if provided
+        if "first_name" in profile_data:
+            user.first_name = profile_data["first_name"]
+        if "last_name" in profile_data:
+            user.last_name = profile_data["last_name"]
+            
+        db.commit()
+        
+        return {"message": "Profile updated successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
+
+@app.post("/api/user/upload-profile-image")
+async def upload_profile_image(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Upload profile image"""
+    try:
+        # Create directory if it doesn't exist
+        upload_dir = Path("uploads/profile_images")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.split(".")[-1]
+        unique_filename = f"{current_user.id}_{int(datetime.now().timestamp())}.{file_extension}"
+        file_path = upload_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Update user record in database
+        user = db.query(models.User).filter(models.User.id == current_user.id).first()
+        user.profile_image = f"/uploads/profile_images/{unique_filename}"
+        db.commit()
+        
+        return {"image_url": user.profile_image}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to upload image: {str(e)}")
+
+@app.post("/api/user/upload-cover-image")
+async def upload_cover_image(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Upload cover image"""
+    try:
+        # Create directory if it doesn't exist
+        upload_dir = Path("uploads/cover_images")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.split(".")[-1]
+        unique_filename = f"{current_user.id}_{int(datetime.now().timestamp())}.{file_extension}"
+        file_path = upload_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Update user record in database
+        user = db.query(models.User).filter(models.User.id == current_user.id).first()
+        user.cover_image = f"/uploads/cover_images/{unique_filename}"
+        db.commit()
+        
+        return {"image_url": user.cover_image}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to upload image: {str(e)}")
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
