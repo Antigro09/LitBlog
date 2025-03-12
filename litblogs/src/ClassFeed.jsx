@@ -17,7 +17,7 @@ import 'prismjs/components/prism-sql';
 import Loader from './components/Loader';
 import Navbar from "./components/Navbar";
 import { Editor } from '@tinymce/tinymce-react';
-import './Litblogs.css';
+import './LitBlogs.css';
 
 const expandableListStyles = `
   .expandable-list {
@@ -243,9 +243,9 @@ const TINYMCE_CONFIG = {
   menubar: false,
   plugins: [
     'advlist','typography','lists', 'link', 'image', 'charmap',
-    'searchreplace', 'code', 'fullscreen', 'table'
+    'searchreplace', 'code', 'fullscreen', 'table', 'wordcount', 'fontfamily'
   ],
-  toolbar: 'formatselect | forecolor backcolor blocks fontfamily fontsize| bold italic underline strikethrough| alignleft aligncenter alignright | bullist numlist | removeformat',
+  toolbar: 'formatselect | forecolor backcolor blocks fontfamily fontsizeselect| bold italic underline strikethrough| alignleft aligncenter alignright | bullist numlist | removeformat',
   block_formats: 'Paragraph=p; Title=h1; Heading=h2; Subheading=h3; Small Heading=h4; Blockquote=blockquote',
   forced_root_block: 'p',
   content_style: `

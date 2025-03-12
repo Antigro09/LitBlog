@@ -142,16 +142,6 @@ const SignUp = () => {
     }
   };
 
-  const handleJoinClass = () => {
-    if (successData?.role === 'STUDENT' && successData?.classInfo) {
-      navigate(`/class-feed/${successData.classInfo.id}`);
-    } else if (successData?.role === 'TEACHER') {
-      navigate('/teacher-dashboard');
-    } else if (successData?.role === 'ADMIN') {
-      navigate('/admin-dashboard');
-    }
-  };
-
   return (
     <div className={`min-h-screen flex items-center justify-center transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
