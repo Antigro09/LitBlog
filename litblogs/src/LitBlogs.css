@@ -379,3 +379,209 @@ span[style*="font-family:"] {
   display: inline !important;
   font-family: inherit !important;
 }
+
+/* Load fonts directly by name */
+@font-face {
+  font-family: 'Times New Roman';
+  src: local('Times New Roman');
+}
+
+@font-face {
+  font-family: 'Arial';
+  src: local('Arial');
+}
+
+@font-face {
+  font-family: 'Georgia';
+  src: local('Georgia');
+}
+
+@font-face {
+  font-family: 'Courier New';
+  src: local('Courier New');
+}
+
+/* More aggressive font targeting */
+.html-content [style*="font-family"] {
+  font-family: attr(style font-family) !important;
+}
+
+/* Override for common fonts */
+.html-content [style*="font-family: Times New Roman"] {
+  font-family: 'Times New Roman', Times, serif !important;
+}
+
+.html-content [style*="font-family: Arial"] {
+  font-family: Arial, sans-serif !important;
+}
+
+.html-content [style*="font-family: Georgia"] {
+  font-family: Georgia, serif !important;
+}
+
+.html-content [style*="font-family: Courier New"] {
+  font-family: 'Courier New', monospace !important;
+}
+
+/* Super specific direct font styles */
+.custom-font {
+  display: inline !important;
+}
+
+/* Direct font declarations - highest specificity */
+.custom-font[style*="font-family: Times New Roman"],
+.custom-font[style*="font-family: 'Times New Roman'"],
+.custom-font[style*='font-family: "Times New Roman"'] {
+  font-family: Times New Roman, serif !important; 
+}
+
+.custom-font[style*="font-family: Arial"],
+.custom-font[style*="font-family: 'Arial'"],
+.custom-font[style*='font-family: "Arial"'] {
+  font-family: Arial, sans-serif !important;
+}
+
+.custom-font[style*="font-family: Georgia"],
+.custom-font[style*="font-family: 'Georgia'"],
+.custom-font[style*='font-family: "Georgia"'] {
+  font-family: Georgia, serif !important;
+}
+
+/* Add !important to all font-family styles */
+span[style*="font-family:"] {
+  font-family: inherit !important;
+  display: inline !important;
+}
+
+/* Force the browser to use the exact font */
+[data-font="Times New Roman"] {
+  font-family: "Times New Roman", Times, serif !important;
+}
+
+[data-font="Arial"] {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+[data-font="Georgia"] {
+  font-family: Georgia, serif !important;
+}
+
+/* Single-purpose font styling */
+.custom-font {
+  display: inline !important;
+}
+
+[data-font-family="Times New Roman"],
+[data-font-family="'Times New Roman'"],
+[data-font-family='"Times New Roman"'] {
+  font-family: "Times New Roman", Times, serif !important;
+}
+
+[data-font-family="Arial"],
+[data-font-family="'Arial'"],
+[data-font-family='"Arial"'] {
+  font-family: Arial, sans-serif !important;
+}
+
+[data-font-family="Georgia"],
+[data-font-family="'Georgia'"],
+[data-font-family='"Georgia"'] {
+  font-family: Georgia, serif !important;
+}
+
+/* Force font families */
+[style*="font-family"] {
+  font-family: unset !important;
+}
+
+/* Add these specific rules for highlights */
+[style*="background-color:"] {
+  background-color: unset !important;
+  display: inline !important;
+}
+
+/* Ensure text is visible over highlights */
+[style*="background-color:"][style*="color:"] {
+  background-color: unset !important;
+  color: unset !important;
+}
+
+/* Make fonts still work */
+.custom-font {
+  display: inline !important;
+}
+
+[data-font-family] {
+  font-family: attr(data-font-family) !important;
+}
+
+/* Ensure highlights don't cover text */
+.html-content [style*="background-color"] {
+  background-color: unset !important;
+  position: relative !important;
+  z-index: 0 !important;
+}
+
+.html-content [style*="color"] {
+  color: unset !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Add heading preservations */
+.preserved-heading[data-heading="h1"] {
+  font-size: 1.8em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+.preserved-heading[data-heading="h2"] {
+  font-size: 1.5em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+.preserved-heading[data-heading="h3"] {
+  font-size: 1.3em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+.preserved-heading[data-heading="h4"] {
+  font-size: 1.1em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+/* Make sure TinyMCE formats are preserved */
+h1, .h1 {
+  font-size: 1.8em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+h2, .h2 {
+  font-size: 1.5em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+h3, .h3 {
+  font-size: 1.3em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+h4, .h4 {
+  font-size: 1.1em !important;
+  font-weight: bold !important;
+  margin: 0.5em 0 !important;
+}
+
+/* Ensure heading tags in HTML content keep their styling */
+.html-content h1,
+.html-content h2,
+.html-content h3,
+.html-content h4 {
+  display: block !important;
+}

@@ -378,11 +378,20 @@ def sanitize_html(content: str) -> str:
         'font': ['color', 'size', 'face'],
         'p': ['align', 'style'],
         'div': ['align', 'style'],
-        'span': ['style']
+        'span': ['style'],
+        'h1': ['style'],
+        'h2': ['style'],
+        'h3': ['style'],
+        'h4': ['style'],
+        'h5': ['style'],
+        'h6': ['style']
     }
     
-    # Define allowed CSS properties - add font-family explicitly
-    ALLOWED_STYLES = ['color', 'background-color', 'font-size', 'text-align', 'font-family']
+    # Define allowed CSS properties
+    ALLOWED_STYLES = [
+        'color', 'background-color', 'font-size', 'text-align', 
+        'font-family', 'font-weight', 'font-style', 'text-decoration'
+    ]
     
     # Create a CSS sanitizer with allowed styles
     css_sanitizer = CSSSanitizer(allowed_css_properties=ALLOWED_STYLES)
@@ -391,7 +400,8 @@ def sanitize_html(content: str) -> str:
     cleaner = bleach.Cleaner(
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
-        css_sanitizer=css_sanitizer
+        css_sanitizer=css_sanitizer,
+        strip=False  # Don't strip tags that aren't in the whitelist
     )
     
     # Sanitize the content
@@ -692,7 +702,7 @@ async def update_class_post(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Get the existing post
+    # Get the post
     db_post = db.query(models.Blog).filter(
         models.Blog.id == post_id,
         models.Blog.class_id == class_id
@@ -705,7 +715,7 @@ async def update_class_post(
     if db_post.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to edit this post")
     
-    # Update the post
+    # Update the post - make sure title and content are both updated
     db_post.title = post.title
     db_post.content = post.content
     db_post.updated_at = datetime.utcnow()
@@ -716,7 +726,7 @@ async def update_class_post(
     # Return updated post
     return {
         "id": db_post.id,
-        "title": db_post.title,
+        "title": db_post.title,  # Make sure title is returned
         "content": db_post.content,
         "created_at": db_post.created_at,
         "owner_id": db_post.owner_id,
@@ -753,9 +763,9 @@ async def delete_class_post(
     return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
-#@app.on_event("startup")
-#async def startup_event():
-    #reset_database()
+@app.on_event("startup")
+async def startup_event():
+    reset_database()
 
 def generate_unique_code(db: Session, length: int = 6) -> str:
     while True:

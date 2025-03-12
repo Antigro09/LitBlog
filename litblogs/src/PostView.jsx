@@ -15,26 +15,78 @@ import ReactHtmlParser from 'react-html-parser';
 import Loader from './components/Loader';
 import './Litblogs.css';
 
-const processHtmlForStyles = (html) => {
-  // First handle colors
-  let processedHtml = html.replace(
-    /<span[^>]*style="[^"]*color: ?#e03e2d[^"]*"[^>]*>(.*?)<\/span>/gi,
-    '<span style="color: #e03e2d !important; display: inline !important;">$1</span>'
-  );
+const processHTMLWithDOM = (html) => {
+  // Create a temporary div to parse the HTML
+  const tempContainer = document.createElement('div');
+  tempContainer.innerHTML = html;
   
-  // Handle all colors
-  processedHtml = processedHtml.replace(
-    /<span[^>]*style="[^"]*color: ?([^;"\s]+)[^"]*"[^>]*>(.*?)<\/span>/gi,
-    '<span style="color: $1 !important; display: inline !important;">$2</span>'
-  );
+  // First, preserve headings by marking them
+  const headings = tempContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  headings.forEach(heading => {
+    // Get the tag name to determine the heading level
+    const level = heading.tagName.toLowerCase();
+    heading.setAttribute('data-heading', level);
+    heading.classList.add('preserved-heading');
+    
+    // Add size styles according to heading level
+    if (level === 'h1') heading.style.fontSize = '1.8em';
+    if (level === 'h2') heading.style.fontSize = '1.5em';
+    if (level === 'h3') heading.style.fontSize = '1.3em';
+    if (level === 'h4') heading.style.fontSize = '1.1em';
+    
+    heading.style.fontWeight = 'bold';
+    heading.style.margin = '0.5em 0';
+  });
   
-  // Handle font-family styles with stronger pattern
-  processedHtml = processedHtml.replace(
-    /<span[^>]*style="[^"]*font-family: ?(['"]?)([^;'"]*)(['"]?)[^"]*"[^>]*>(.*?)<\/span>/gi,
-    '<span style="font-family: $2 !important; display: inline !important;">$4</span>'
-  );
+  // Process all elements with font-family styles
+  const elementsWithFontFamily = tempContainer.querySelectorAll('[style*="font-family"]');
+  console.log("Found elements with font-family:", elementsWithFontFamily.length);
   
-  return processedHtml;
+  elementsWithFontFamily.forEach(el => {
+    // Get the original style
+    const style = el.getAttribute('style');
+    console.log("Original style:", style);
+    
+    // Extract font-family value
+    const fontMatch = style.match(/font-family:\s*([^;]+)/i);
+    if (fontMatch && fontMatch[1]) {
+      const fontFamily = fontMatch[1].trim();
+      console.log("Found font-family:", fontFamily);
+      
+      // Apply direct inline style with important
+      el.style.setProperty('font-family', fontFamily, 'important');
+      
+      // Add a data attribute for CSS targeting
+      el.setAttribute('data-font-family', fontFamily);
+      el.classList.add('custom-font');
+    }
+  });
+  
+  // Process color styles without overriding display properties
+  const elementsWithColor = tempContainer.querySelectorAll('[style*="color"]');
+  elementsWithColor.forEach(el => {
+    const style = el.getAttribute('style');
+    const colorMatch = style.match(/color:\s*([^;]+)/i);
+    if (colorMatch && colorMatch[1]) {
+      const color = colorMatch[1].trim();
+      el.style.setProperty('color', color, 'important');
+    }
+  });
+  
+  // Handle background colors separately
+  const elementsWithBg = tempContainer.querySelectorAll('[style*="background-color"]');
+  elementsWithBg.forEach(el => {
+    const style = el.getAttribute('style');
+    const bgMatch = style.match(/background-color:\s*([^;]+)/i);
+    if (bgMatch && bgMatch[1]) {
+      const bgColor = bgMatch[1].trim();
+      el.style.setProperty('background-color', bgColor, 'important');
+      // Make sure text remains visible with highlighting
+      el.style.setProperty('color', 'inherit', 'important');
+    }
+  });
+  
+  return tempContainer.innerHTML;
 };
 
 const PostView = () => {
@@ -103,6 +155,23 @@ const PostView = () => {
         Prism.highlightAll();
       };
       highlight();
+    }
+  }, [post]);
+
+  useEffect(() => {
+    if (post && post.content) {
+      console.log("Post Content:", post.content);
+      
+      // Check for font-family styles
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = post.content;
+      
+      const elements = tempDiv.querySelectorAll('[style*="font-family"]');
+      console.log("Elements with font-family:", elements.length);
+      
+      elements.forEach(el => {
+        console.log("Font family style:", el.getAttribute('style'));
+      });
     }
   }, [post]);
 
@@ -219,14 +288,18 @@ const PostView = () => {
               </div>
             </div>
 
-            {/* Post Title and Content */}
-            <h1 className="text-3xl font-bold mb-4 dark:text-white">{post.title}</h1>
-            
-            {/* Replace the existing content render with this */}
+            {/* Post Title - without label */}
+            <div className={`mb-6 px-5 py-4 rounded-lg border ${darkMode ? 'bg-gray-750 border-gray-600' : 'bg-blue-50 border-blue-100'}`}>
+              <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                {post.title}
+              </h1>
+            </div>
+
+            {/* Post Content */}
             <div 
               className="html-content"
               dangerouslySetInnerHTML={{ 
-                __html: processHtmlForStyles(post.content) 
+                __html: processHTMLWithDOM(post.content) 
               }}
             />
 

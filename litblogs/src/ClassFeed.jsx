@@ -235,7 +235,11 @@ const MediaPreview = ({ media, files, onRemove }) => {
 };
 
 const TINYMCE_CONFIG = {
-  height: 500,
+  height: 400,
+  min_height: 300,
+  max_height: 500,
+  resize: false,
+  autoresize_bottom_margin: 50,
   menubar: false,
   plugins: [
     'advlist','typography','lists', 'link', 'image', 'charmap',
@@ -249,6 +253,9 @@ const TINYMCE_CONFIG = {
       font-family: Arial, sans-serif;
       font-size: 14px;
       margin: 1rem;
+      padding-bottom: 2rem;
+      max-height: 400px;
+      overflow-y: auto !important;
     }
     h1 { font-size: 1.8em; font-weight: bold; margin: 0.5em 0; }
     h2 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; }
@@ -280,6 +287,79 @@ const TINYMCE_CONFIG = {
                 'Tahoma=tahoma,arial,helvetica,sans-serif;' +
                 'Trebuchet MS=trebuchet ms,geneva,sans-serif;' +
                 'Verdana=verdana,geneva,sans-serif',
+};
+
+// Add this function near the top of the file, outside the component
+const processHTMLWithDOM = (html) => {
+  // Create a temporary div to parse the HTML
+  const tempContainer = document.createElement('div');
+  tempContainer.innerHTML = html;
+  
+  // Process all elements with font-family styles
+  const elementsWithFontFamily = tempContainer.querySelectorAll('[style*="font-family"]');
+  
+  elementsWithFontFamily.forEach(el => {
+    // Get the original style
+    const style = el.getAttribute('style');
+    
+    // Extract font-family value
+    const fontMatch = style.match(/font-family:\s*([^;]+)/i);
+    if (fontMatch && fontMatch[1]) {
+      const fontFamily = fontMatch[1].trim();
+      
+      // Apply direct inline style with important
+      el.style.setProperty('font-family', fontFamily, 'important');
+      
+      // Add a data attribute for CSS targeting
+      el.setAttribute('data-font-family', fontFamily);
+      el.classList.add('custom-font');
+    }
+  });
+  
+  // Process color styles without overriding display properties
+  const elementsWithColor = tempContainer.querySelectorAll('[style*="color"]');
+  elementsWithColor.forEach(el => {
+    const style = el.getAttribute('style');
+    const colorMatch = style.match(/color:\s*([^;]+)/i);
+    if (colorMatch && colorMatch[1]) {
+      const color = colorMatch[1].trim();
+      el.style.setProperty('color', color, 'important');
+    }
+  });
+  
+  // Handle background colors separately
+  const elementsWithBg = tempContainer.querySelectorAll('[style*="background-color"]');
+  elementsWithBg.forEach(el => {
+    const style = el.getAttribute('style');
+    const bgMatch = style.match(/background-color:\s*([^;]+)/i);
+    if (bgMatch && bgMatch[1]) {
+      const bgColor = bgMatch[1].trim();
+      el.style.setProperty('background-color', bgColor, 'important');
+      el.style.setProperty('color', 'inherit', 'important');
+    }
+  });
+  
+  return tempContainer.innerHTML;
+};
+
+// Add this function for truncating content
+const truncateHTML = (html, maxLength = 300) => {
+  // Create a temporary div to parse the HTML
+  const tempContainer = document.createElement('div');
+  tempContainer.innerHTML = html;
+  
+  // Get the text content
+  let textContent = tempContainer.textContent || tempContainer.innerText;
+  
+  if (textContent.length <= maxLength) {
+    return html;
+  }
+  
+  // Truncate the text
+  textContent = textContent.substring(0, maxLength).trim() + '...';
+  
+  // Create a simple paragraph with the truncated text
+  return `<p>${textContent}</p><p class="text-blue-500 font-medium mt-2">Read more</p>`;
 };
 
 const ClassFeed = () => {
@@ -717,14 +797,8 @@ const ClassFeed = () => {
 
   const handleEditPost = (post) => {
     setEditingPostId(post.id);
-    setPostTitle(post.title);  // Set the title
-    setPostContent({
-      text: post.content,
-      media: [],
-      expandableLists: [],
-      codeSnippets: [],
-      files: []
-    });
+    setPostTitle(post.title);
+    setContent(post.content);
     setShowNewPostForm(true);
     setActivePostMenu(null);
   };
@@ -747,6 +821,65 @@ const ClassFeed = () => {
       }
     }
     setActivePostMenu(null);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate input
+    if (!postTitle.trim()) {
+      alert("Please enter a title");
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (editingPostId) {
+        // Editing existing post
+        const response = await axios.put(
+          `http://localhost:8000/api/classes/${classId}/posts/${editingPostId}`,
+          {
+            title: postTitle,
+            content: content
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        // Update the post in the UI
+        setPosts(posts.map(post => 
+          post.id === editingPostId ? response.data : post
+        ));
+        
+      } else {
+        // Creating new post
+        const response = await axios.post(
+          `http://localhost:8000/api/classes/${classId}/posts`,
+          {
+            title: postTitle,
+            content: content
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        // Add the new post to the UI
+        setPosts([response.data, ...posts]);
+      }
+      
+      // Reset form
+      setPostTitle("");
+      setContent("");
+      setEditingPostId(null);
+      setShowNewPostForm(false);
+      
+    } catch (error) {
+      console.error("Error creating/updating post:", error);
+      alert("Failed to create/update post. Please try again.");
+    }
   };
 
   return (
@@ -863,94 +996,108 @@ const ClassFeed = () => {
           {/* Posts Grid */}
           <div className="space-y-8">
             {posts.map((post) => (
-              <motion.div
+              <motion.div 
                 key={post.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow duration-300"
+                layout
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
-                whileHover={{ scale: 1.01, duration: 0.5 }}
-                whileTap={{ scale: 0.98, duration: 0.5 }}
+                transition={{ duration: 0.3 }}
+                className={`mb-6 p-6 rounded-xl shadow-sm ${
+                  darkMode ? 'bg-gray-800' : 'bg-white'
+                } relative`}
               >
-                <div className="p-8">
-                  {/* Author Info with Menu */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
-                        {post.author[0]}
-                      </div>
-                      <div>
-                        <h3 className="font-medium dark:text-white">
-                          <span>By {post.author}</span>
-                        </h3>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(post.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
+                {/* Post Header and Details */}
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      darkMode ? 'bg-gray-700' : 'bg-gray-200'
+                    }`}>
+                      {post.author?.[0] || '?'}
                     </div>
+                    <div className="ml-3">
+                      <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {post.author || 'Unknown Author'}
+                      </h3>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {post.timestamp || new Date(post.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Post Actions Menu */}
+                  {post.owner_id === userInfo?.id && (
+                    <div className="relative post-menu" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)}
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                      >
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                        </svg>
+                      </button>
 
-                    {/* Post Menu - Only show for user's own posts */}
-                    {post.owner_id === userInfo?.id && (
-                      <div className="relative post-menu" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)}
-                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                      {/* Dropdown Menu */}
+                      {activePostMenu === post.id && (
+                        <div 
+                          className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-10"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                          </svg>
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {activePostMenu === post.id && (
-                          <div 
-                            className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-10"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="py-1">
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleEditPost(post);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                              >
-                                Edit Post
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDeletePost(post.id);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-                              >
-                                Delete Post
-                              </button>
-                            </div>
+                          <div className="py-1">
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleEditPost(post);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              Edit Post
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDeletePost(post.id);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              Delete Post
+                            </button>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Post Title and Preview */}
-                  <h2 className="text-xl font-semibold mb-2 dark:text-white">{post.title}</h2>
-                  <div className="prose dark:prose-invert max-w-none">
-                    {renderContent(post.content)}
-                  </div>
-
-                  {/* Post Stats */}
-                  <div className="mt-4 flex items-center space-x-4 text-gray-500 dark:text-gray-400">
-                    <div className="flex items-center space-x-1">
-                      <span>👍</span>
-                      <span>0</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <span>💬</span>
-                      <span>0</span>
-                    </div>
+                  )}
+                </div>
+              
+                {/* Post Title - without label */}
+                <div 
+                  className={`mb-4 px-4 py-3 rounded-lg border cursor-pointer ${darkMode ? 'bg-gray-750 border-gray-600' : 'bg-blue-50 border-blue-100'}`}
+                  onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
+                >
+                  <h4 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                    {post.title}
+                  </h4>
+                </div>
+              
+                {/* Post Content */}
+                <div 
+                  className="html-content mb-4 cursor-pointer"
+                  onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
+                  dangerouslySetInnerHTML={{ 
+                    __html: truncateHTML(processHTMLWithDOM(post.content), 200) 
+                  }}
+                />
+                
+                {/* Post Actions/Stats */}
+                <div className="flex items-center justify-between mt-4 pt-4 border-t dark:border-gray-700">
+                  <div className="flex items-center space-x-4">
+                    <span>👍</span>
+                    <span>0</span>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <span>💬</span>
+                    <span>0</span>
                   </div>
                 </div>
               </motion.div>
@@ -974,7 +1121,7 @@ const ClassFeed = () => {
               exit={{ scale: 0.9, opacity: 0 }}
               className={`${
                 darkMode ? 'bg-gray-800' : 'bg-white'
-              } rounded-lg p-6 max-w-2xl w-full shadow-xl`}
+              } rounded-lg p-6 max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto`}
             >
               <div className="mb-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
@@ -997,7 +1144,7 @@ const ClassFeed = () => {
                 </span>
               </div>
 
-              <form onSubmit={createPost} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Category Dropdown */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1018,29 +1165,37 @@ const ClassFeed = () => {
                   </select>
                 </div>
 
-                {/* Title Input */}
-                <input
-                  type="text"
-                  placeholder="Give this post a title"
-                  className={`w-full p-4 rounded-lg border text-lg ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                      : 'bg-white border-gray-300 placeholder-gray-500'
-                  } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                  required
-                />
+                {/* Title Input - professional styling */}
+                <div className={`mb-5 p-4 rounded-lg border ${darkMode ? 'bg-gray-750 border-gray-600' : 'bg-blue-50 border-blue-100'}`}>
+                  <label htmlFor="post-title" className={`block text-base font-bold ${darkMode ? 'text-white' : 'text-gray-800'} mb-2`}>
+                    Post Title (Required)
+                  </label>
+                  <input
+                    type="text"
+                    id="post-title"
+                    value={postTitle}
+                    onChange={(e) => setPostTitle(e.target.value)}
+                    className={`w-full p-3 rounded-lg border text-lg ${
+                      darkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white' 
+                        : 'bg-white border-blue-200 text-gray-800'
+                    }`}
+                    placeholder="Enter a descriptive title for your post"
+                    required
+                  />
+                  <div className="mt-2 text-xs text-gray-500">
+                    This will be displayed at the top of your post
+                  </div>
+                </div>
 
                 {/* Content Input */}
                 <div className="relative">
                   <Editor
                     apiKey="edr7zffd9q7v6okan1ka9dbc23ugp710ycjhcfroxd9undjo"
                     init={TINYMCE_CONFIG}
-                    value={postContent.text}
+                    value={content}
                     onEditorChange={(content) => {
-                      setPostContent(prev => ({
-                        ...prev,
-                        text: content
-                      }));
+                      setContent(content);
                     }}
                   />
                   
