@@ -70,61 +70,109 @@ const SignIn = () => {
         password
       });
 
+      // Check if the response indicates this is a Google account
+      if (response.data.auth_type === 'google') {
+        setErrorMessage("This account was created with Google. Please use the Google Sign-In button below.");
+        setIsLoading(false);
+        return;
+      }
+
       // Store the token
       localStorage.setItem('token', response.data.access_token);
       
-      // Fetch user info
-      const userInfoResponse = await axios.get(`http://localhost:8000/api/user/${response.data.user_id}`, {
-        headers: {
-          'Authorization': `Bearer ${response.data.access_token}`
-        }
-      });
-      
       // Store user info
       const userInfo = {
-        role: userInfoResponse.data.role,
-        userId: userInfoResponse.data.id,
-        username: userInfoResponse.data.username,
-        firstName: userInfoResponse.data.first_name,
+        role: response.data.role,
+        userId: response.data.user_id,
+        username: response.data.username,
+        firstName: response.data.first_name,
       };
       localStorage.setItem('user_info', JSON.stringify(userInfo));
       
-      // Redirect based on role
-      const role = response.data.role;
+      // For students, store class info if available
+      if (response.data.role === 'STUDENT' && response.data.class_info) {
+        const classInfo = {
+          id: response.data.class_info.id,
+          name: response.data.class_info.name,
+          code: response.data.class_info.access_code
+        };
+        localStorage.setItem('class_info', JSON.stringify(classInfo));
+      }
       
-      if (role === 'STUDENT') {
+      // Redirect based on role
+      if (response.data.role === 'STUDENT') {
         navigate('/student-hub');
-      } else if (role === 'TEACHER') {
+      } else if (response.data.role === 'TEACHER') {
         navigate('/teacher-dashboard');
-      } else if (role === 'ADMIN') {
+      } else if (response.data.role === 'ADMIN') {
         navigate('/admin-dashboard');
       }
     } catch (error) {
       console.error('Login error:', error);
-      setErrorMessage(error.response?.data?.detail || "Login failed");
+      
+      // Check if the error is related to Google authentication
+      if (error.response?.status === 401 && 
+          error.response?.data?.detail?.includes('Google')) {
+        setErrorMessage("This account uses Google authentication. Please sign in with the Google button below.");
+      } else {
+        setErrorMessage(error.response?.data?.detail || "Login failed. Please check your email and password.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
   
-    
   const handleGoogleSuccess = async (response) => {
-    console.log("Google Login Success:", response);
     try {
+      setIsLoading(true);
+      setErrorMessage("");
+      
       const backendResponse = await axios.post('http://localhost:8000/api/auth/google-login', {
         token: response.credential
       });
+      
+      // Store the token
       localStorage.setItem('token', backendResponse.data.access_token);
-      navigate('/student-hub');
+      
+      // Store user info
+      const userInfo = {
+        role: backendResponse.data.role,
+        userId: backendResponse.data.id,
+        username: backendResponse.data.username,
+        firstName: backendResponse.data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+      
+      // For students, store class info if available
+      if (backendResponse.data.role === 'STUDENT' && backendResponse.data.class_info) {
+        const classInfo = {
+          id: backendResponse.data.class_info.id,
+          name: backendResponse.data.class_info.name,
+          code: backendResponse.data.class_info.access_code
+        };
+        localStorage.setItem('class_info', JSON.stringify(classInfo));
+      }
+      
+      // Redirect based on role
+      if (backendResponse.data.role === 'STUDENT') {
+        navigate('/student-hub');
+      } else if (backendResponse.data.role === 'TEACHER') {
+        navigate('/teacher-dashboard');
+      } else if (backendResponse.data.role === 'ADMIN') {
+        navigate('/admin-dashboard');
+      }
     } catch (error) {
       console.error("Google Login Error:", error);
-      setErrorMessage("Google login failed");
+      
+      // Check if the user needs to sign up first
+      if (error.response?.status === 404) {
+        setErrorMessage("Account not found. Please sign up with Google first.");
+      } else {
+        setErrorMessage(error.response?.data?.detail || "Google login failed");
+      }
+    } finally {
+      setIsLoading(false);
     }
-  };
-
-  const handleGoogleFailure = (error) => {
-    console.error("Google Login Failed:", error);
-    setErrorMessage("Google login failed");
   };
 
 return (

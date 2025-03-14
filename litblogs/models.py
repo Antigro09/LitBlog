@@ -21,6 +21,7 @@ class User(Base):
     role = Column(SQLAlchemyEnum(UserRole), nullable=False, default=UserRole.STUDENT)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    google_id = Column(String, nullable=True, unique=True)
     # For students: the classes they're enrolled in
     enrolled_classes = relationship("ClassEnrollment", back_populates="student")
     blogs = relationship("Blog", back_populates="owner")

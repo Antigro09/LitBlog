@@ -146,39 +146,177 @@ const SignUp = () => {
   // Google Sign Up Handlers
   const handleGoogleSignUpSuccess = async (credentialResponse) => {
     try {
-      const response = await axios.post('http://localhost:8000/api/auth/google-register', {
-        token: credentialResponse.credential
+      // Check if role is selected
+      if (!role) {
+        setErrorMessage("Please select a role before signing up with Google");
+        return;
+      }
+
+      // Check if access code is provided for Teacher/Admin roles
+      if ((role === 'TEACHER' || role === 'ADMIN') && !accessCode) {
+        setErrorMessage(`Please enter an access code for ${role.toLowerCase()} role`);
+        return;
+      }
+
+      setIsLoading(true);
+      setErrorMessage("");
+      
+      // Get the ID token from the Google response
+      const { credential } = credentialResponse;
+      
+      // Send the token to your backend for verification
+      const response = await fetch('http://localhost:8000/api/auth/google-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          token: credential,
+          role: role,
+          accessCode: accessCode || undefined
+        }),
+        credentials: 'include'
       });
-      localStorage.setItem('token', response.data.token);
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to sign up with Google');
+      }
+      
+      // Store user info in localStorage
+      localStorage.setItem('token', data.token);
+      
+      // Store user info
       const userInfo = {
-        role: response.data.role,
-        userId: response.data.id,
-        username: response.data.username,
-        firstName: response.data.first_name,
+        role: data.role,
+        userId: data.id,
+        username: data.username,
+        firstName: data.first_name,
       };
       localStorage.setItem('user_info', JSON.stringify(userInfo));
-
-      if (response.data.role === 'STUDENT' && response.data.class_info) {
-        navigate(`/class-feed/${response.data.class_info.id}`);
-      } else if (response.data.role === 'TEACHER') {
-        navigate('/teacher-dashboard');
-      } else if (response.data.role === 'ADMIN') {
-        navigate('/admin-dashboard');
+      
+      // For students, store class info
+      if (data.role === 'STUDENT' && data.class_info) {
+        const classInfo = {
+          id: data.class_info.id,
+          name: data.class_info.name,
+          code: data.class_info.access_code
+        };
+        localStorage.setItem('class_info', JSON.stringify(classInfo));
       }
+      
+      // Show success modal with user role information
+      setSuccessData({
+        role: data.role,
+        classInfo: data.class_info
+      });
+      setShowSuccessModal(true);
+      
     } catch (error) {
-      console.error('Google registration error:', error);
-      setErrorMessage('Google registration failed');
+      console.error('Google sign up failed:', error);
+      setErrorMessage(error.message || 'Google sign up failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignUpFailure = (error) => {
-    console.error('Google registration failed:', error);
-    setErrorMessage('Google registration failed');
+    console.error('Google sign up error:', error);
+    setErrorMessage('Google sign up failed. Please try again.');
   };
 
   const googleSignUp = useGoogleLogin({
-    onSuccess: handleGoogleSignUpSuccess,
+    onSuccess: async (tokenResponse) => {
+      try {
+        // Check if role is selected
+        if (!role) {
+          setErrorMessage("Please select a role before signing up with Google");
+          return;
+        }
+
+        // Check if access code is provided for Teacher/Admin roles
+        if ((role === 'TEACHER' || role === 'ADMIN') && !accessCode) {
+          setErrorMessage(`Please enter an access code for ${role.toLowerCase()} role`);
+          return;
+        }
+        
+        setIsLoading(true);
+        setErrorMessage("");
+        
+        // Get user information from Google using the access token
+        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: {
+            Authorization: `Bearer ${tokenResponse.access_token}`,
+          },
+        });
+        
+        const googleUserInfo = await userInfoResponse.json();
+        
+        // Send the user info to your backend
+        const response = await fetch('http://localhost:8000/api/auth/google-signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            googleData: {
+              email: googleUserInfo.email,
+              firstName: googleUserInfo.given_name,
+              lastName: googleUserInfo.family_name,
+              googleId: googleUserInfo.sub,
+              picture: googleUserInfo.picture
+            },
+            role: role,
+            accessCode: accessCode || undefined
+          }),
+          credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.detail || 'Failed to sign up with Google');
+        }
+        
+        // Store user info in localStorage
+        localStorage.setItem('token', data.token);
+        
+        // Store user info
+        const userInfo = {
+          role: data.role,
+          userId: data.id,
+          username: data.username,
+          firstName: data.first_name,
+        };
+        localStorage.setItem('user_info', JSON.stringify(userInfo));
+        
+        // For students, store class info
+        if (data.role === 'STUDENT' && data.class_info) {
+          const classInfo = {
+            id: data.class_info.id,
+            name: data.class_info.name,
+            code: data.class_info.access_code
+          };
+          localStorage.setItem('class_info', JSON.stringify(classInfo));
+        }
+        
+        // Show success modal with user role information
+        setSuccessData({
+          role: data.role,
+          classInfo: data.class_info
+        });
+        setShowSuccessModal(true);
+        
+      } catch (error) {
+        console.error('Google sign up failed:', error);
+        setErrorMessage(error.message || 'Google sign up failed. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
     onError: handleGoogleSignUpFailure,
+    scopes: 'email profile'
   });
 
   return (

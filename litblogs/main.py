@@ -23,6 +23,10 @@ from models import User, Teacher  # Add this line
 from bs4 import BeautifulSoup
 import bleach
 from bleach.css_sanitizer import CSSSanitizer
+from google.auth.transport import requests
+from google.oauth2 import id_token
+import secrets
+import random
 
 app = FastAPI()
 
@@ -169,19 +173,39 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 @app.post("/api/auth/login")
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == request.email).first()
+async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == login_data.email).first()
+    
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid email or password"
         )
-    if not verify_password(request.password, user.password):
+    
+    # Check if this is a Google user (add this field to your User model)
+    # You could determine this by checking if they were created via Google sign-up
+    # For example, you could check if their password is the special random one
+    # or add a specific field to track this
+    
+    # This is a simplified check - you may need to adapt this based on your actual model
+    google_user = db.query(models.User).filter(
+        models.User.email == login_data.email, 
+        models.User.google_id.isnot(None)  # Assuming you're storing google_id
+    ).first()
+    
+    if google_user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="This account uses Google authentication. Please sign in with Google."
         )
-
+    
+    if not verify_password(login_data.password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid email or password"
+        )
+    
+    # Continue with token generation and other logic...
     # Create access token with user ID (not email)
     access_token = create_access_token(data={"sub": str(user.id)})
 
@@ -867,6 +891,214 @@ async def debug_post_content(
         "raw_content": post.content,
         "length": len(post.content)
     }
+
+# Add this endpoint to your FastAPI app
+
+@app.post("/api/auth/google-signup", response_model=schemas.UserResponse)
+async def google_signup(google_data: dict, db: Session = Depends(get_db)):
+    """
+    Process Google OAuth sign-up
+    
+    The request body should contain either:
+    - token: ID token from Google (from GoogleLogin component)
+    - or googleData: User info from Google API (from useGoogleLogin hook)
+    - role: User role (STUDENT, TEACHER, ADMIN)
+    - accessCode: Access code for TEACHER or ADMIN roles
+    """
+    try:
+        # Check if we got an ID token or user info
+        if 'token' in google_data:
+            # Verify the Google ID token
+            idinfo = id_token.verify_oauth2_token(
+                google_data['token'], 
+                requests.Request(), 
+                "653922429771-qdjgvs7vkrcd7g4o2oea12t097ah4eog.apps.googleusercontent.com"
+            )
+            
+            # Extract user info from the verified token
+            user_email = idinfo['email']
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            google_id = idinfo['sub']  # This is the Google ID
+            
+        elif 'googleData' in google_data:
+            # Use the user info directly
+            user_data = google_data['googleData']
+            user_email = user_data['email']
+            first_name = user_data.get('firstName', '')
+            last_name = user_data.get('lastName', '')
+            google_id = user_data['googleId']  # This is the Google ID
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Google authentication data"
+            )
+        
+        # Get role and access code from the request
+        role = google_data.get('role', 'STUDENT')
+        access_code = google_data.get('accessCode')
+        
+        # Validate role
+        if role not in ["STUDENT", "TEACHER", "ADMIN"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid role specified"
+            )
+        
+        # Verify access code for teachers and admins
+        if role == "TEACHER" and (not access_code or access_code != os.getenv("TEACHER_ACCESS_CODE")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid teacher access code"
+            )
+            
+        if role == "ADMIN" and (not access_code or access_code != os.getenv("ADMIN_ACCESS_CODE")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid admin access code"
+            )
+            
+        # Check if user already exists
+        existing_user = db.query(models.User).filter(models.User.email == user_email).first()
+        if existing_user:
+            # User exists, generate token and return user info
+            access_token = create_access_token(data={"sub": str(existing_user.id)})
+            
+            return {
+                "id": existing_user.id,
+                "username": existing_user.username,
+                "email": existing_user.email,
+                "first_name": existing_user.first_name,
+                "last_name": existing_user.last_name,
+                "role": existing_user.role.value,
+                "is_admin": existing_user.is_admin,
+                "created_at": existing_user.created_at,
+                "token": access_token
+            }
+        
+        # Create random username using email prefix and random numbers
+        username = user_email.split('@')[0] + str(random.randint(1000, 9999))
+        
+        # Create a random secure password for Google users
+        random_password = secrets.token_hex(16)
+        hashed_password = get_password_hash(random_password)
+        
+        # Create new user - NOW INCLUDING GOOGLE_ID
+        new_user = models.User(
+            username=username,
+            email=user_email,
+            password=hashed_password,  # Store hashed random password
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            is_admin=(role == "ADMIN"),
+            google_id=google_id  # Store the Google ID!
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Generate token
+        access_token = create_access_token(data={"sub": str(new_user.id)})
+        
+        return {
+            "id": new_user.id,
+            "username": new_user.username,
+            "email": new_user.email,
+            "first_name": new_user.first_name,
+            "last_name": new_user.last_name,
+            "role": new_user.role.value,
+            "is_admin": new_user.is_admin,
+            "created_at": new_user.created_at,
+            "token": access_token
+        }
+        
+    except ValueError as e:
+        # Invalid token
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Google token: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process Google sign-up: {str(e)}"
+        )
+
+@app.post("/api/auth/google-login")
+async def google_login(google_data: dict, db: Session = Depends(get_db)):
+    """
+    Process Google OAuth login
+    
+    The request body should contain:
+    - token: ID token from Google
+    """
+    try:
+        # Verify the Google ID token
+        idinfo = id_token.verify_oauth2_token(
+            google_data['token'], 
+            requests.Request(), 
+            "653922429771-qdjgvs7vkrcd7g4o2oea12t097ah4eog.apps.googleusercontent.com"
+        )
+        
+        # Extract email from the verified token
+        user_email = idinfo['email']
+        
+        # Check if user exists
+        user = db.query(models.User).filter(models.User.email == user_email).first()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found. Please sign up first."
+            )
+        
+        # Generate token
+        access_token = create_access_token(data={"sub": str(user.id)})
+        
+        # Get class info for students
+        class_info = None
+        if user.role == UserRole.STUDENT:
+            enrollment = db.query(models.ClassEnrollment).filter(
+                models.ClassEnrollment.student_id == user.id
+            ).first()
+            
+            if enrollment:
+                class_data = db.query(models.Class).filter(
+                    models.Class.id == enrollment.class_id
+                ).first()
+                
+                if class_data:
+                    class_info = {
+                        "id": class_data.id,
+                        "name": class_data.name,
+                        "access_code": class_data.access_code
+                    }
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": user.id,
+            "role": user.role.value,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_admin": user.is_admin,
+            "class_info": class_info
+        }
+        
+    except ValueError as e:
+        # Invalid token
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Google token: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process Google login: {str(e)}"
+        )
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
