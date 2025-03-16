@@ -971,4 +971,4 @@ async def upload_cover_image(
         raise HTTPException(status_code=500, detail=f"Failed to upload image: {str(e)}")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=7002, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
