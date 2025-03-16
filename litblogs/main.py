@@ -29,7 +29,7 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Add your frontend URL
+    allow_origins=["http://localhost:5173", "http://drhscit.org:7001", "http://www.drhscit.org:7001"],  # Add your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -763,9 +763,9 @@ async def delete_class_post(
     return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
-@app.on_event("startup")
-async def startup_event():
-    reset_database()
+#@app.on_event("startup")
+#async def startup_event():
+    #reset_database()
 
 def generate_unique_code(db: Session, length: int = 6) -> str:
     while True:
