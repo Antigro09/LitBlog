@@ -194,158 +194,192 @@ const StudentProfile = () => {
 
   // Load user info and fetch posts
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      loadUserData()
-    }, 800)
-  }, [navigate])
+    const fetchProfileData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/sign-in');
+          return;
+        }
+
+        // Fetch user profile data with Bearer token
+        const response = await axios.get('/api/user/profile', {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const profileData = response.data;
+        setUserInfo(profileData);
+        setName(`${profileData.first_name || ''} ${profileData.last_name || ''}`);
+        setFirstName(profileData.first_name || '');
+        setLastName(profileData.last_name || '');
+        setBio(profileData.bio || "Share a little about yourself...");
+        setImage(profileData.profile_image);
+        setCoverImage(profileData.cover_image);
+
+        // Don't fetch posts yet since that endpoint isn't ready
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        // If we have userInfo in localStorage, use that as fallback
+        const storedUserInfo = localStorage.getItem('user_info');
+        if (storedUserInfo) {
+          const parsedUserInfo = JSON.parse(storedUserInfo);
+          setUserInfo(parsedUserInfo);
+          setName(`${parsedUserInfo.first_name || ''} ${parsedUserInfo.last_name || ''}`);
+          setFirstName(parsedUserInfo.first_name || '');
+          setLastName(parsedUserInfo.last_name || '');
+          setBio(parsedUserInfo.bio || "Share a little about yourself...");
+          setImage(parsedUserInfo.profile_image);
+          setCoverImage(parsedUserInfo.cover_image);
+        }
+        setError("Failed to load profile data");
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [navigate]);
 
   // Fetch user's posts
-  const fetchUserPosts = async (user) => {
-    if (!user) return
+  const fetchUserPosts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/sign-in');
+        return;
+      }
+
+      const response = await axios.get('/api/user/posts', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setUserPosts(response.data);
+    } catch (error) {
+      console.error("Error fetching user posts:", error);
+      setError("Failed to load posts");
+    }
+  };
+
+  // Handle profile updates
+  const handleProfileUpdate = async () => {
+    if (!isEditing) {
+      setIsEditing(true);
+      return;
+    }
 
     try {
-      const token = localStorage.getItem("token")
-      if (!token) {
-        // Instead of redirecting, use mock data
-        setUserPosts(MOCK_POSTS)
-        return
-      }
+      setSaving(true);
+      const token = localStorage.getItem('token');
+      
+      // Update profile information
+      await axios.post('/api/user/update-profile', {
+        first_name: firstName,
+        last_name: lastName,
+        bio: bio
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-      // Use the student posts endpoint from your backend
-      const endpoint =
-        user.role === "STUDENT" ? "http://localhost:8000/api/student/posts" : "http://localhost:8000/api/teacher/posts"
+      // Update the displayed name
+      setName(`${firstName} ${lastName}`);
+      setIsEditing(false);
+      setSaving(false);
 
-      const response = await axios.get(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      // Update local userInfo state
+      setUserInfo(prev => ({
+        ...prev,
+        first_name: firstName,
+        last_name: lastName,
+        bio: bio
+      }));
 
-      if (response.data) {
-        setUserPosts(response.data)
-      }
     } catch (error) {
-      console.error("Error fetching user posts:", error)
-      // Use mock data on error
-      setUserPosts(MOCK_POSTS)
+      console.error("Error updating profile:", error);
+      setSaving(false);
+      setError("Failed to update profile");
     }
-  }
+  };
 
+  // Handle image upload
   const handleImageUpload = async (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const file = event.target.files[0];
+    if (!file) return;
 
-    // Create preview for immediate feedback
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImage(reader.result)
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Save to localStorage for mock data persistence
-      if (useMockData) {
-        const updatedMockUser = {
-          ...userInfo,
-          profile_image: reader.result,
+      const token = localStorage.getItem('token');
+      setUploadProgress(0);
+
+      const response = await axios.post('/api/user/upload-profile-image', formData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(progress);
         }
-        localStorage.setItem("mock_user_data", JSON.stringify(updatedMockUser))
-        setUserInfo(updatedMockUser)
-      }
+      });
+
+      setImage(response.data.image_url);
+      setUploadProgress(0);
+
+      // Update userInfo state
+      setUserInfo(prev => ({
+        ...prev,
+        profile_image: response.data.image_url
+      }));
+
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      setUploadProgress(0);
+      setError("Failed to upload image");
     }
-    reader.readAsDataURL(file)
+  };
 
-    // Upload to server
-    if (isEditing && !useMockData) {
-      try {
-        const formData = new FormData()
-        formData.append("file", file)
-
-        const token = localStorage.getItem("token")
-        if (!token) {
-          // Skip upload if no token
-          return
-        }
-
-        const response = await axios.post("http://localhost:8000/api/user/upload-profile-image", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
-          },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setUploadProgress(percentCompleted)
-          },
-        })
-
-        // Update user info in localStorage with new profile image
-        const updatedUserInfo = { ...userInfo, profile_image: response.data.image_url }
-        localStorage.setItem("user_info", JSON.stringify(updatedUserInfo))
-        setUserInfo(updatedUserInfo)
-
-        // Reset upload progress
-        setTimeout(() => setUploadProgress(0), 1000)
-      } catch (error) {
-        console.error("Error uploading profile image:", error)
-        // Keep the preview but show an error
-        setError("Failed to upload profile image. Please try again.")
-      }
-    }
-  }
-
+  // Handle cover image upload
   const handleCoverImageUpload = async (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const file = event.target.files[0];
+    if (!file) return;
 
-    // Create preview for immediate feedback
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setCoverImage(reader.result)
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Save to localStorage for mock data persistence
-      if (useMockData) {
-        const updatedMockUser = {
-          ...userInfo,
-          cover_image: reader.result,
+      const token = localStorage.getItem('token');
+      setUploadProgress(0);
+
+      const response = await axios.post('/api/user/upload-cover-image', formData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(progress);
         }
-        localStorage.setItem("mock_user_data", JSON.stringify(updatedMockUser))
-        setUserInfo(updatedMockUser)
-      }
+      });
+
+      setCoverImage(response.data.image_url);
+      setUploadProgress(0);
+
+      // Update userInfo state
+      setUserInfo(prev => ({
+        ...prev,
+        cover_image: response.data.image_url
+      }));
+
+    } catch (error) {
+      console.error("Error uploading cover image:", error);
+      setUploadProgress(0);
+      setError("Failed to upload cover image");
     }
-    reader.readAsDataURL(file)
-
-    // Upload to server
-    if (isEditing && !useMockData) {
-      try {
-        const formData = new FormData()
-        formData.append("file", file)
-
-        const token = localStorage.getItem("token")
-        if (!token) {
-          // Skip upload if no token
-          return
-        }
-
-        const response = await axios.post("http://localhost:8000/api/user/upload-cover-image", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`,
-          },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setUploadProgress(percentCompleted)
-          },
-        })
-
-        // Update user info in localStorage with new cover image
-        const updatedUserInfo = { ...userInfo, cover_image: response.data.image_url }
-        localStorage.setItem("user_info", JSON.stringify(updatedUserInfo))
-        setUserInfo(updatedUserInfo)
-
-        // Reset upload progress
-        setTimeout(() => setUploadProgress(0), 1000)
-      } catch (error) {
-        console.error("Error uploading cover image:", error)
-        setError("Failed to upload cover image. Please try again.")
-      }
-    }
-  }
+  };
 
   const selectProfileImage = (imageUrl) => {
     setImage(imageUrl)
@@ -377,83 +411,19 @@ const StudentProfile = () => {
     }
   }
 
-  const saveProfileChanges = async () => {
-    try {
-      setSaving(true)
-
-      if (useMockData) {
-        // Save changes to localStorage for mock data
-        setTimeout(() => {
-          const updatedMockUser = {
-            ...userInfo,
-            first_name: firstName,
-            last_name: lastName,
-            bio: bio,
-          }
-          localStorage.setItem("mock_user_data", JSON.stringify(updatedMockUser))
-          setUserInfo(updatedMockUser)
-          setName(`${firstName} ${lastName}`)
-          setIsEditing(false)
-          setSaving(false)
-        }, 800)
-        return
-      }
-
-      const token = localStorage.getItem("token")
-      if (!token) {
-        // Skip save if no token
-        setSaving(false)
-        return
-      }
-
-      // Prepare data to update
-      const profileData = {
-        bio: bio,
-        first_name: firstName,
-        last_name: lastName,
-      }
-
-      // Send update to server
-      await axios.post("http://localhost:8000/api/user/update-profile", profileData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      // Update local user info
-      const updatedUserInfo = {
-        ...userInfo,
-        bio: bio,
-        first_name: firstName,
-        last_name: lastName,
-      }
-
-      localStorage.setItem("user_info", JSON.stringify(updatedUserInfo))
-      setUserInfo(updatedUserInfo)
-      setName(`${firstName} ${lastName}`)
-
-      // Exit edit mode
-      setIsEditing(false)
-    } catch (error) {
-      console.error("Error saving profile changes:", error)
-      setError("Failed to save profile changes.")
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleSignOut = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user_info")
-    localStorage.removeItem("class_info")
-    setUserInfo(null)
-    // Instead of navigating away, just reload with mock data
-    setUseMockData(true)
-    loadUserData()
-    // Show success message
-    setError("Successfully signed out!")
-    setTimeout(() => setError(null), 3000)
-  }
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('class_info');
+    setUserInfo(null);
+    navigate('/');
+  };
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('user_info');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -487,7 +457,7 @@ const StudentProfile = () => {
         className="fixed top-5 right-4 z-10 transition-transform transform hover:scale-110"
         whileHover={{ scale: 1.1 }}
       >
-        <button
+          <button 
           onClick={toggleDarkMode}
           className={`${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-white hover:bg-gray-100"} ${darkMode ? "text-white" : "text-gray-800"} p-3 rounded-full shadow-lg transition-all duration-200 transform hover:-translate-y-1`}
         >
@@ -568,7 +538,7 @@ const StudentProfile = () => {
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
                     <polyline points="21 15 16 10 5 21"></polyline>
-                  </svg>
+                    </svg>
                 </button>
                 <label
                   htmlFor="coverImageUpload"
@@ -595,8 +565,8 @@ const StudentProfile = () => {
                     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
                     <circle cx="12" cy="13" r="3"></circle>
                   </svg>
-                </label>
-              </div>
+              </label>
+            </div>
             )}
 
             {/* Cover Image Options */}
@@ -623,8 +593,8 @@ const StudentProfile = () => {
                 <div className="w-full mt-1 bg-gray-300 rounded-full h-1.5">
                   <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
                 </div>
-              </div>
-            )}
+                </div>
+              )}
           </div>
 
           {/* Profile Info Section */}
@@ -671,8 +641,8 @@ const StudentProfile = () => {
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                         <circle cx="8.5" cy="8.5" r="1.5"></circle>
                         <polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                    </button>
+                  </svg>
+                </button>
                     <label
                       className={`cursor-pointer w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? "bg-gray-700" : "bg-white"} border ${darkMode ? "border-gray-600" : "border-gray-200"} shadow-md transition-all duration-200 transform hover:scale-110`}
                     >
@@ -708,17 +678,17 @@ const StudentProfile = () => {
                           <img src={profileUrl || "/placeholder.svg"} alt={`Avatar ${index + 1}`} className="w-full h-full object-cover" />
                         </div>
                       ))}
-                    </div>
-                  </div>
+              </div>
+            </div>
                 )}
 
                 {uploadProgress > 0 && uploadProgress < 100 && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
                     <div className="text-white text-sm font-bold">{uploadProgress}%</div>
-                  </div>
+          </div>
                 )}
-              </div>
-
+        </div>
+        
               {/* User Info - now centered */}
               <div className="text-center">
                 {isEditing ? (
@@ -742,8 +712,8 @@ const StudentProfile = () => {
                         } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         placeholder="Last Name"
                       />
-                    </div>
-                  </div>
+            </div>
+            </div>
                 ) : (
                   <h2 className={`text-2xl font-bold ${darkMode ? "text-white" : "text-gray-800"}`}>{name}</h2>
                 )}
@@ -770,11 +740,11 @@ const StudentProfile = () => {
                   >
                     {userInfo?.role || "STUDENT"}
                   </span>
-                </div>
-              </div>
             </div>
-
-            {/* Bio Section */}
+          </div>
+        </div>
+        
+        {/* Bio Section */}
             <div className="mb-8">
               <h3 className={`text-lg font-semibold mb-2 ${darkMode ? "text-white" : "text-gray-800"} text-center`}>
                 About Me
@@ -830,7 +800,7 @@ const StudentProfile = () => {
                       ? "bg-green-500 hover:bg-green-600"
                       : "bg-blue-500 hover:bg-blue-600"
                 } text-white flex items-center justify-center shadow-lg transition-all duration-200`}
-                onClick={isEditing ? saveProfileChanges : () => setIsEditing(true)}
+                onClick={isEditing ? handleProfileUpdate : () => setIsEditing(true)}
                 disabled={saving}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -945,10 +915,10 @@ const StudentProfile = () => {
               onClick={() => setActiveTab("saved")}
             >
               Saved
-            </button>
+              </button>
           </div>
         </div>
-
+        
         {/* Recent Posts Section */}
         {activeTab === "posts" && (
           <motion.div
@@ -1110,7 +1080,7 @@ const StudentProfile = () => {
       {/* Floating Action Button */}
       <motion.div className="fixed bottom-8 right-8" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
         <Link to="/student-hub">
-          <button
+          <button 
             className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center ${
               darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"
             } text-white transition-all duration-200 transform hover:-translate-y-1`}

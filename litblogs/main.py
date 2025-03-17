@@ -763,9 +763,9 @@ async def delete_class_post(
     return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
-#@app.on_event("startup")
-#async def startup_event():
-    #reset_database()
+@app.on_event("startup")
+async def startup_event():
+    reset_database()
 
 def generate_unique_code(db: Session, length: int = 6) -> str:
     while True:
@@ -969,6 +969,25 @@ async def upload_cover_image(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to upload image: {str(e)}")
+
+@app.get("/api/user/profile")
+async def get_user_profile(current_user: models.User = Depends(get_current_user)):
+    """Get user profile information"""
+    try:
+        return {
+            "id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "first_name": current_user.first_name,
+            "last_name": current_user.last_name,
+            "bio": current_user.bio,
+            "role": current_user.role,
+            "profile_image": current_user.profile_image,
+            "cover_image": current_user.cover_image,
+            "created_at": current_user.created_at
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch profile: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
