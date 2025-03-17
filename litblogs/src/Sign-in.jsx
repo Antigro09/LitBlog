@@ -175,6 +175,12 @@ const SignIn = () => {
     }
   };
 
+    // Missing implementation of handleGoogleFailure
+  const handleGoogleFailure = (error) => {
+    console.error('Google login error:', error);
+    setErrorMessage('Google sign-in failed. Please try again.');
+  };
+
 return (
     <div className={`min-h-screen flex items-center justify-center transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
