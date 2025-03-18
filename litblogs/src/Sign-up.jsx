@@ -332,7 +332,7 @@ const SignUp = () => {
       const response = await instance.loginPopup(loginRequest);
       
       // Send token to backend with role and access code
-      const backendResponse = await axios.post('/api/auth/microsoft-signup', {
+      const backendResponse = await axios.post('http://localhost:8000/api/auth/microsoft-signup', {
         msUserData: {
           email: response.account.username,
           firstName: response.account.name?.split(' ')[0] || '',
