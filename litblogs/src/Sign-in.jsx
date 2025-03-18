@@ -5,6 +5,9 @@ import './LitBlogs.css'; // Import any custom styles here
 import axios from 'axios';
 import Loader from './components/Loader';
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "./config/msalConfig";
+import { FaMicrosoft } from 'react-icons/fa';
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -15,6 +18,8 @@ const SignIn = () => {
   const dropdownRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
+  const { instance } = useMsal();
+  const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -166,7 +171,8 @@ const SignIn = () => {
       
       // Check if the user needs to sign up first
       if (error.response?.status === 404) {
-        setErrorMessage("Account not found. Please sign up with Google first.");
+        setErrorMessage("Account not found. Please go to Sign Up and choose your role first.");
+        setShowSignUpPrompt(true);
       } else {
         setErrorMessage(error.response?.data?.detail || "Google login failed");
       }
@@ -179,6 +185,52 @@ const SignIn = () => {
   const handleGoogleFailure = (error) => {
     console.error('Google login error:', error);
     setErrorMessage('Google sign-in failed. Please try again.');
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      setIsLoading(true);
+      const response = await instance.loginPopup(loginRequest);
+      
+      // Send token to backend
+      const backendResponse = await axios.post('/api/auth/microsoft-login', {
+        msUserData: {
+          email: response.account.username,
+          firstName: response.account.name?.split(' ')[0] || '',
+          lastName: response.account.name?.split(' ')[1] || '',
+          microsoftId: response.account.localAccountId
+        }
+      });
+      
+      // Handle response same as Google login
+      localStorage.setItem('token', backendResponse.data.access_token);
+      const userInfo = {
+        role: backendResponse.data.role,
+        userId: backendResponse.data.user_id,
+        username: backendResponse.data.username,
+        firstName: backendResponse.data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+      
+      // Redirect based on role
+      if (backendResponse.data.role === 'STUDENT') {
+        navigate('/student-hub');
+      } else if (backendResponse.data.role === 'TEACHER') {
+        navigate('/teacher-dashboard');
+      } else if (backendResponse.data.role === 'ADMIN') {
+        navigate('/admin-dashboard');
+      }
+      
+    } catch (error) {
+      console.error('Microsoft login error:', error);
+      if (error.response?.status === 404) {
+        setErrorMessage("Account not found. Please sign up first.");
+      } else {
+        setErrorMessage(error.response?.data?.detail || error.message || 'Microsoft login failed');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
 return (
@@ -254,7 +306,6 @@ return (
           </div>
         </div>
       </motion.nav>
-      <GoogleOAuthProvider clientId="653922429771-qdjgvs7vkrcd7g4o2oea12t097ah4eog.apps.googleusercontent.com">
       <motion.div
         className="max-w-md w-full mt-16 mb-16 p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 top-5"
         initial={{ opacity: 0, y: 30 }}
@@ -319,6 +370,7 @@ return (
             </motion.p>
           )}
 
+          {/* Regular sign in button */}
           <motion.button
             type="submit"
             className={`w-full p-4 text-white rounded-lg text-lg focus:outline-none ${darkMode ? 'bg-teal-700 hover:bg-teal-600' : 'bg-blue-600 hover:bg-blue-700'} transition-colors duration-300`}
@@ -328,6 +380,33 @@ return (
             Sign In
           </motion.button>
         </form>
+
+        {/* Divider */}
+        <div className="mt-6 mb-6 flex items-center">
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+          <span className="mx-4 text-sm text-gray-500 dark:text-gray-400">or continue with</span>
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+        </div>
+
+        {/* Social login buttons */}
+        <div className="text-center">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleFailure}
+          />
+          <button
+            onClick={handleMicrosoftLogin}
+            className="mt-4 flex items-center gap-2 w-full p-2 text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-sm transition-all duration-300"
+            style={{ height: '40px' }}
+          >
+            <div className="flex-1 flex items-center">
+              <FaMicrosoft className="text-[#00a4ef] text-xl ml-1" />
+            </div>
+            <div className="flex-[2] text-center pr-20 text-sm">
+              <span>Sign in with Microsoft</span>
+            </div>
+          </button>
+        </div>
 
         <div className="mt-6 text-center">
           <Link
@@ -348,19 +427,19 @@ return (
             </Link>
           </p>
         </div>
-        <motion.div
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        >
-          <div className="mt-6 text-center">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleFailure}
-            />
+
+        {showSignUpPrompt && (
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-yellow-800 mb-2">You need to sign up and choose a role first.</p>
+            <Link 
+              to="/sign-up" 
+              className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md inline-block"
+            >
+              Go to Sign Up
+            </Link>
           </div>
-        </motion.div>
+        )}
       </motion.div>
-      </GoogleOAuthProvider>
       <motion.div
         className="absolute top-6 right-6 z-10"
         whileHover={{ scale: 1.1 }}

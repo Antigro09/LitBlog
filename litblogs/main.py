@@ -27,6 +27,7 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 import secrets
 import random
+from msal import ConfidentialClientApplication  # Add this import
 
 app = FastAPI()
 
@@ -84,13 +85,13 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     # Verify access codes based on role (but skip for students)
     if user.role == models.UserRole.TEACHER:
-        if not user.access_code or user.access_code != os.getenv("TEACHER_CODE"):
+        if not user.access_code or user.access_code != os.getenv("TEACHER_ACCESS_CODE"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid teacher code"
             )
     elif user.role == models.UserRole.ADMIN:
-        if not user.access_code or user.access_code != os.getenv("ADMIN_CODE"):
+        if not user.access_code or user.access_code != os.getenv("ADMIN_ACCESS_CODE"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid admin code"
@@ -606,41 +607,53 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/teacher/dashboard")
-async def get_teacher_dashboard(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if not current_user.role == models.UserRole.TEACHER:
-        raise HTTPException(status_code=403, detail="Not authorized")
+async def get_teacher_dashboard(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get teacher dashboard data"""
+    # Verify user is a teacher
+    if current_user.role != "TEACHER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only teachers can access this endpoint"
+        )
     
-    teacher = db.query(models.Teacher).filter(
-        models.Teacher.email == current_user.email
-    ).first()
-    
-    if not teacher:
-        raise HTTPException(status_code=404, detail="Teacher record not found")
-    
-    return {
-        "id": teacher.id,
-        "name": teacher.name,
-        "email": teacher.email,
-        "classes": [
-            {
-                "id": cls.id,
-                "name": cls.name,
-                "description": cls.description,
-                "access_code": cls.access_code,
-                "students": [
-                    {
-                        "id": enrollment.student_id,
-                        "name": f"{enrollment.student.first_name} {enrollment.student.last_name}"
-                    }
-                    for enrollment in cls.students
-                ]
-            }
-            for cls in teacher.classes
-        ]
-    }
+    try:
+        # Get teacher's classes
+        classes = db.query(models.Class).filter(
+            models.Class.teacher_id == current_user.id
+        ).all()
+        
+        # Get total students across all classes
+        total_students = db.query(models.ClassEnrollment).filter(
+            models.ClassEnrollment.class_id.in_([c.id for c in classes])
+        ).count()
+        
+        # Format response
+        classes_data = [{
+            "id": c.id,
+            "name": c.name,
+            "access_code": c.access_code,
+            "created_at": c.created_at,
+            "student_count": db.query(models.ClassEnrollment).filter(
+                models.ClassEnrollment.class_id == c.id
+            ).count()
+        } for c in classes]
+        
+        return {
+            "teacher": {
+                "id": current_user.id,
+                "name": f"{current_user.first_name} {current_user.last_name}",
+                "email": current_user.email
+            },
+            "classes": classes_data,
+            "total_students": total_students,
+            "total_classes": len(classes)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get teacher dashboard data: {str(e)}"
+        )
 
 @app.post("/api/classes")
 async def create_class(
@@ -777,9 +790,9 @@ async def delete_class_post(
     return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
-#@app.on_event("startup")
-#async def startup_event():
-    #reset_database()
+@app.on_event("startup")
+async def startup_event():
+    reset_database()
 
 def generate_unique_code(db: Session, length: int = 6) -> str:
     while True:
@@ -1027,60 +1040,63 @@ async def google_signup(google_data: dict, db: Session = Depends(get_db)):
         )
 
 @app.post("/api/auth/google-login")
-async def google_login(google_data: dict, db: Session = Depends(get_db)):
-    """
-    Process Google OAuth login
-    
-    The request body should contain:
-    - token: ID token from Google
-    """
+async def google_login(token_data: dict, db: Session = Depends(get_db)):
+    """Process Google login - now with existence check"""
     try:
-        # Verify the Google ID token
+        # Extract the token
+        token = token_data.get('token')
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Token is required"
+            )
+            
+        # Verify token with Google
         idinfo = id_token.verify_oauth2_token(
-            google_data['token'], 
-            requests.Request(), 
-            "653922429771-qdjgvs7vkrcd7g4o2oea12t097ah4eog.apps.googleusercontent.com"
+            token, requests.Request(), "653922429771-qdjgvs7vkrcd7g4o2oea12t097ah4eog.apps.googleusercontent.com"
         )
         
-        # Extract email from the verified token
-        user_email = idinfo['email']
+        # Extract user info
+        email = idinfo['email']
         
         # Check if user exists
-        user = db.query(models.User).filter(models.User.email == user_email).first()
+        user = db.query(models.User).filter(
+            (models.User.email == email) | 
+            (models.User.google_id == idinfo['sub'])
+        ).first()
         
+        # If user doesn't exist, require signup
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found. Please sign up first."
+                detail="User not found. Please sign up and choose a role first."
             )
         
-        # Generate token
+        # Rest of the login logic...
         access_token = create_access_token(data={"sub": str(user.id)})
         
         # Get class info for students
         class_info = None
-        if user.role == UserRole.STUDENT:
+        if user.role == 'STUDENT':
             enrollment = db.query(models.ClassEnrollment).filter(
                 models.ClassEnrollment.student_id == user.id
             ).first()
-            
             if enrollment:
-                class_data = db.query(models.Class).filter(
+                class_ = db.query(models.Class).filter(
                     models.Class.id == enrollment.class_id
                 ).first()
-                
-                if class_data:
+                if class_:
                     class_info = {
-                        "id": class_data.id,
-                        "name": class_data.name,
-                        "access_code": class_data.access_code
+                        "id": class_.id,
+                        "name": class_.name,
+                        "access_code": class_.access_code
                     }
         
         return {
             "access_token": access_token,
             "token_type": "bearer",
             "user_id": user.id,
-            "role": user.role.value,
+            "role": user.role,
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
@@ -1089,7 +1105,6 @@ async def google_login(google_data: dict, db: Session = Depends(get_db)):
         }
         
     except ValueError as e:
-        # Invalid token
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid Google token: {str(e)}"
@@ -1098,6 +1113,243 @@ async def google_login(google_data: dict, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process Google login: {str(e)}"
+        )
+
+@app.post("/api/auth/microsoft-login")
+async def microsoft_login(microsoft_data: dict, db: Session = Depends(get_db)):
+    """Process Microsoft login - now with existence check"""
+    try:
+        # Extract user info from the Microsoft data
+        user_data = microsoft_data['msUserData']
+        user_email = user_data['email']
+        microsoft_id = user_data['microsoftId']
+        
+        # Check if user exists
+        user = db.query(models.User).filter(
+            (models.User.email == user_email) | 
+            (models.User.microsoft_id == microsoft_id)
+        ).first()
+        
+        # If user doesn't exist, require signup
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found. Please sign up and choose a role first."
+            )
+        
+        # Rest of the login logic...
+        access_token = create_access_token(data={"sub": str(user.id)})
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": user.id,
+            "role": user.role,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_admin": user.is_admin
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process Microsoft login: {str(e)}"
+        )
+
+# Add these constants at the top with your other constants
+MS_CLIENT_ID = "68975491-3428-4424-bb26-63bd8f7a75ad"
+MS_CLIENT_SECRET = "00475c0d-a0ba-46e9-96e0-fbb8c5926b93"  # Add your secret here
+MS_AUTHORITY = "https://login.microsoftonline.com/common"
+
+@app.post("/api/auth/microsoft-token")
+async def get_microsoft_token(request_data: dict, db: Session = Depends(get_db)):
+    """Exchange authorization code for tokens and handle signup"""
+    try:
+        auth_code = request_data.get('auth_code')
+        role = request_data.get('role', 'STUDENT')
+        access_code = request_data.get('accessCode')
+
+        # Create MSAL confidential client application
+        app = ConfidentialClientApplication(
+            client_id=MS_CLIENT_ID,
+            client_credential=MS_CLIENT_SECRET,
+            authority=MS_AUTHORITY
+        )
+
+        # Get tokens using authorization code with correct scopes
+        result = app.acquire_token_by_authorization_code(
+            code=auth_code,
+            scopes=["https://graph.microsoft.com/User.Read"],
+            redirect_uri="http://localhost:5173"
+        )
+
+        if "error" in result:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Failed to get token: {result.get('error_description')}"
+            )
+
+        # Get user info from Microsoft Graph
+        access_token = result['access_token']
+        headers = {'Authorization': f'Bearer {access_token}'}
+        graph_response = requests.get(
+            'https://graph.microsoft.com/v1.0/me',
+            headers=headers
+        )
+        user_data = graph_response.json()
+
+        # Validate role and access code
+        if role not in ["STUDENT", "TEACHER", "ADMIN"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid role specified"
+            )
+        
+        if role == "TEACHER" and (not access_code or access_code != os.getenv("TEACHER_ACCESS_CODE")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid teacher access code"
+            )
+            
+        if role == "ADMIN" and (not access_code or access_code != os.getenv("ADMIN_ACCESS_CODE")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid admin access code"
+            )
+
+        # Check if user exists
+        user = db.query(models.User).filter(
+            (models.User.email == user_data['mail']) | 
+            (models.User.microsoft_id == user_data['id'])
+        ).first()
+
+        if not user:
+            # Create new user
+            username = user_data['mail'].split('@')[0] + str(random.randint(1000, 9999))
+            random_password = secrets.token_hex(16)
+            hashed_password = get_password_hash(random_password)
+            
+            user = models.User(
+                username=username,
+                email=user_data['mail'],
+                password=hashed_password,
+                first_name=user_data.get('givenName', ''),
+                last_name=user_data.get('surname', ''),
+                role=role,
+                is_admin=(role == "ADMIN"),
+                microsoft_id=user_data['id']
+            )
+            
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # Generate our app's token
+        access_token = create_access_token(data={"sub": str(user.id)})
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": user.id,
+            "role": user.role,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_admin": user.is_admin
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process Microsoft signup: {str(e)}"
+        )
+
+@app.post("/api/auth/microsoft-signup")
+async def microsoft_signup(microsoft_data: dict, db: Session = Depends(get_db)):
+    """Process Microsoft OAuth sign-up"""
+    try:
+        # Get role and access code from the request
+        role = microsoft_data.get('role', 'STUDENT')
+        access_code = microsoft_data.get('accessCode')
+        
+        # Validate role
+        if role not in ["STUDENT", "TEACHER", "ADMIN"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid role specified"
+            )
+        
+        # Verify access code for teachers and admins
+        if role == "TEACHER" and (not access_code or access_code != os.getenv("TEACHER_ACCESS_CODE")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid teacher access code"
+            )
+            
+        if role == "ADMIN" and (not access_code or access_code != os.getenv("ADMIN_ACCESS_CODE")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid admin access code"
+            )
+
+        # Extract user info from the Microsoft data
+        user_data = microsoft_data['msUserData']
+        user_email = user_data['email']
+        first_name = user_data.get('firstName', '')
+        last_name = user_data.get('lastName', '')
+        microsoft_id = user_data['microsoftId']
+        
+        # Check if user exists
+        user = db.query(models.User).filter(
+            (models.User.email == user_email) | 
+            (models.User.microsoft_id == microsoft_id)
+        ).first()
+        
+        if user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already exists. Please sign in instead."
+            )
+        
+        # Create new user
+        username = user_email.split('@')[0] + str(random.randint(1000, 9999))
+        random_password = secrets.token_hex(16)
+        hashed_password = get_password_hash(random_password)
+        
+        user = models.User(
+            username=username,
+            email=user_email,
+            password=hashed_password,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            is_admin=(role == "ADMIN"),
+            microsoft_id=microsoft_id
+        )
+        
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        # Generate token
+        access_token = create_access_token(data={"sub": str(user.id)})
+        
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "role": user.role,
+            "is_admin": user.is_admin,
+            "token": access_token
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process Microsoft signup: {str(e)}"
         )
 
 if __name__ == "__main__":
