@@ -193,7 +193,7 @@ const SignIn = () => {
       const response = await instance.loginPopup(loginRequest);
       
       // Send token to backend
-      const backendResponse = await axios.post('/api/auth/microsoft-login', {
+      const backendResponse = await axios.post('http://localhost:8000/api/auth/microsoft-login', {
         msUserData: {
           email: response.account.username,
           firstName: response.account.name?.split(' ')[0] || '',
