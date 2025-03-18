@@ -15,7 +15,6 @@ import Profile from "./Profile";
 
 function App() {
   return (
-    <Router>
       <Routes>
         <Route path="/" element={<LitBlogs />} />
         <Route path="/tambellini" element={<Tambellini />} />
@@ -32,7 +31,6 @@ function App() {
         <Route path="/student-hub" element={<StudentHub />} />
         <Route path="/Profile" element={<Profile/>}/>
       </Routes>
-    </Router>
   );
 }
 

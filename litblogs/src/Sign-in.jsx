@@ -4,6 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import './LitBlogs.css'; // Import any custom styles here
 import axios from 'axios';
 import Loader from './components/Loader';
+import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "./config/msalConfig";
+import { FaMicrosoft } from 'react-icons/fa';
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -14,6 +18,8 @@ const SignIn = () => {
   const dropdownRef = useRef(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
+  const { instance } = useMsal();
+  const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -69,44 +75,165 @@ const SignIn = () => {
         password
       });
 
+      // Check if the response indicates this is a Google account
+      if (response.data.auth_type === 'google') {
+        setErrorMessage("This account was created with Google. Please use the Google Sign-In button below.");
+        setIsLoading(false);
+        return;
+      }
+
       // Store the token
       localStorage.setItem('token', response.data.access_token);
       
-      // Fetch user info
-      const userInfoResponse = await axios.get(`http://localhost:8000/api/user/${response.data.user_id}`, {
-        headers: {
-          'Authorization': `Bearer ${response.data.access_token}`
-        }
-      });
-      
       // Store user info
       const userInfo = {
-        role: userInfoResponse.data.role,
-        userId: userInfoResponse.data.id,
-        username: userInfoResponse.data.username,
-        firstName: userInfoResponse.data.first_name,
+        role: response.data.role,
+        userId: response.data.user_id,
+        username: response.data.username,
+        firstName: response.data.first_name,
       };
       localStorage.setItem('user_info', JSON.stringify(userInfo));
       
-      // Redirect based on role
-      const role = response.data.role;
+      // For students, store class info if available
+      if (response.data.role === 'STUDENT' && response.data.class_info) {
+        const classInfo = {
+          id: response.data.class_info.id,
+          name: response.data.class_info.name,
+          code: response.data.class_info.access_code
+        };
+        localStorage.setItem('class_info', JSON.stringify(classInfo));
+      }
       
-      if (role === 'STUDENT') {
+      // Redirect based on role
+      if (response.data.role === 'STUDENT') {
         navigate('/student-hub');
-      } else if (role === 'TEACHER') {
+      } else if (response.data.role === 'TEACHER') {
         navigate('/teacher-dashboard');
-      } else if (role === 'ADMIN') {
+      } else if (response.data.role === 'ADMIN') {
         navigate('/admin-dashboard');
       }
     } catch (error) {
       console.error('Login error:', error);
-      setErrorMessage(error.response?.data?.detail || "Login failed");
+      
+      // Check if the error is related to Google authentication
+      if (error.response?.status === 401 && 
+          error.response?.data?.detail?.includes('Google')) {
+        setErrorMessage("This account uses Google authentication. Please sign in with the Google button below.");
+      } else {
+        setErrorMessage(error.response?.data?.detail || "Login failed. Please check your email and password.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
   
-  return (
+  const handleGoogleSuccess = async (response) => {
+    try {
+      setIsLoading(true);
+      setErrorMessage("");
+      
+      const backendResponse = await axios.post('http://localhost:8000/api/auth/google-login', {
+        token: response.credential
+      });
+      
+      // Store the token
+      localStorage.setItem('token', backendResponse.data.access_token);
+      
+      // Store user info
+      const userInfo = {
+        role: backendResponse.data.role,
+        userId: backendResponse.data.id,
+        username: backendResponse.data.username,
+        firstName: backendResponse.data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+      
+      // For students, store class info if available
+      if (backendResponse.data.role === 'STUDENT' && backendResponse.data.class_info) {
+        const classInfo = {
+          id: backendResponse.data.class_info.id,
+          name: backendResponse.data.class_info.name,
+          code: backendResponse.data.class_info.access_code
+        };
+        localStorage.setItem('class_info', JSON.stringify(classInfo));
+      }
+      
+      // Redirect based on role
+      if (backendResponse.data.role === 'STUDENT') {
+        navigate('/student-hub');
+      } else if (backendResponse.data.role === 'TEACHER') {
+        navigate('/teacher-dashboard');
+      } else if (backendResponse.data.role === 'ADMIN') {
+        navigate('/admin-dashboard');
+      }
+    } catch (error) {
+      console.error("Google Login Error:", error);
+      
+      // Check if the user needs to sign up first
+      if (error.response?.status === 404) {
+        setErrorMessage("Account not found. Please go to Sign Up and choose your role first.");
+        setShowSignUpPrompt(true);
+      } else {
+        setErrorMessage(error.response?.data?.detail || "Google login failed");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+    // Missing implementation of handleGoogleFailure
+  const handleGoogleFailure = (error) => {
+    console.error('Google login error:', error);
+    setErrorMessage('Google sign-in failed. Please try again.');
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      setIsLoading(true);
+      const response = await instance.loginPopup(loginRequest);
+      
+      // Send token to backend
+      const backendResponse = await axios.post('/api/auth/microsoft-login', {
+        msUserData: {
+          email: response.account.username,
+          firstName: response.account.name?.split(' ')[0] || '',
+          lastName: response.account.name?.split(' ')[1] || '',
+          microsoftId: response.account.localAccountId
+        }
+      });
+      
+      // Handle response same as Google login
+      localStorage.setItem('token', backendResponse.data.access_token);
+      const userInfo = {
+        role: backendResponse.data.role,
+        userId: backendResponse.data.user_id,
+        username: backendResponse.data.username,
+        firstName: backendResponse.data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+      
+      // Redirect based on role
+      if (backendResponse.data.role === 'STUDENT') {
+        navigate('/student-hub');
+      } else if (backendResponse.data.role === 'TEACHER') {
+        navigate('/teacher-dashboard');
+      } else if (backendResponse.data.role === 'ADMIN') {
+        navigate('/admin-dashboard');
+      }
+      
+    } catch (error) {
+      console.error('Microsoft login error:', error);
+      if (error.response?.status === 404) {
+        setErrorMessage("Account not found. Please sign up first.");
+      } else {
+        setErrorMessage(error.response?.data?.detail || error.message || 'Microsoft login failed');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+return (
     <div className={`min-h-screen flex items-center justify-center transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
       <motion.nav 
@@ -179,10 +306,8 @@ const SignIn = () => {
           </div>
         </div>
       </motion.nav>
-
-      {/* Main Container with Padding to Avoid Navbar Overlap */}
       <motion.div
-        className="max-w-md w-full p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 top-5"
+        className="max-w-md w-full mt-16 mb-16 p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 top-5"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
@@ -245,6 +370,7 @@ const SignIn = () => {
             </motion.p>
           )}
 
+          {/* Regular sign in button */}
           <motion.button
             type="submit"
             className={`w-full p-4 text-white rounded-lg text-lg focus:outline-none ${darkMode ? 'bg-teal-700 hover:bg-teal-600' : 'bg-blue-600 hover:bg-blue-700'} transition-colors duration-300`}
@@ -254,6 +380,33 @@ const SignIn = () => {
             Sign In
           </motion.button>
         </form>
+
+        {/* Divider */}
+        <div className="mt-6 mb-6 flex items-center">
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+          <span className="mx-4 text-sm text-gray-500 dark:text-gray-400">or continue with</span>
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+        </div>
+
+        {/* Social login buttons */}
+        <div className="text-center">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleFailure}
+          />
+          <button
+            onClick={handleMicrosoftLogin}
+            className="mt-4 flex items-center gap-2 w-full p-2 text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-sm transition-all duration-300"
+            style={{ height: '40px' }}
+          >
+            <div className="flex-1 flex items-center">
+              <FaMicrosoft className="text-[#00a4ef] text-xl ml-1" />
+            </div>
+            <div className="flex-[2] text-center pr-20 text-sm">
+              <span>Sign in with Microsoft</span>
+            </div>
+          </button>
+        </div>
 
         <div className="mt-6 text-center">
           <Link
@@ -274,9 +427,19 @@ const SignIn = () => {
             </Link>
           </p>
         </div>
-      </motion.div>
 
-      {/* Dark Mode Toggle Button */}
+        {showSignUpPrompt && (
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-yellow-800 mb-2">You need to sign up and choose a role first.</p>
+            <Link 
+              to="/sign-up" 
+              className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md inline-block"
+            >
+              Go to Sign Up
+            </Link>
+          </div>
+        )}
+      </motion.div>
       <motion.div
         className="absolute top-6 right-6 z-10"
         whileHover={{ scale: 1.1 }}

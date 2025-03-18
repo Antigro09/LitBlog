@@ -2,43 +2,48 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import './LitBlogs.css'; // Import any custom styles here
-import axios from 'axios';  // Make sure axios is installed: npm install axios
+import axios from 'axios';
 import Loader from './components/Loader';
+import { GoogleOAuthProvider, GoogleLogin, useGoogleLogin } from '@react-oauth/google';
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "./config/msalConfig";
+import { FaMicrosoft } from 'react-icons/fa';
 
 const SignUp = () => {
-    const navigate = useNavigate();
-    // State variables for form inputs
-    const [firstName, setFirstName] = useState("");
-    const [lastName, setLastName] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [darkMode, setDarkMode] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
-    const dropdownRef = useRef(null);
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [role, setRole] = useState('');
-    const [accessCode, setAccessCode] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [successData, setSuccessData] = useState(null);
+  const navigate = useNavigate();
+  const { instance } = useMsal();
+  // State variables for form inputs
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const dropdownRef = useRef(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [role, setRole] = useState('');
+  const [accessCode, setAccessCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successData, setSuccessData] = useState(null);
 
-    useEffect(() => {
-      const handleClickOutside = (event) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-          setIsDropdownOpen(false);
-        }
-      };
-  
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }, []);
-  
-    const toggleDropdown = () => {
-      setIsDropdownOpen((prev) => !prev);
-    };  
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen((prev) => !prev);
+  };  
   // Dark mode logic (same as previous)
   const toggleDarkMode = () => {
     setDarkMode((prevDarkMode) => {
@@ -69,74 +74,300 @@ const SignUp = () => {
   // Form submission handler
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!firstName || !lastName || !email || !password || !confirmPassword || !role) {
-      setErrorMessage("Please fill in all required fields.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage("");
-
+    
     try {
-      const username = email.split('@')[0];
-      const userData = {
+      // Check if role is selected
+      if (!role) {
+        setErrorMessage("Please select a role");
+        return;
+      }
+
+      // Validate access code for teachers and admins
+      if ((role === 'TEACHER' || role === 'ADMIN') && !accessCode) {
+        setErrorMessage(`Please enter the ${role.toLowerCase()} access code`);
+        return;
+      }
+
+      // Check if passwords match
+      if (password !== confirmPassword) {
+        setErrorMessage("Passwords do not match");
+        return;
+      }
+
+      setIsLoading(true);
+      setErrorMessage("");
+
+      // Create username from email
+      const username = email.split('@')[0] + Math.floor(Math.random() * 1000);
+
+      // Send registration data to backend with correct field names
+      const response = await axios.post('http://localhost:8000/api/auth/register', {
         username: username,
         email: email,
         password: password,
-        first_name: firstName,
-        last_name: lastName,
+        first_name: firstName,  // Changed from firstName to first_name
+        last_name: lastName,    // Changed from lastName to last_name
         role: role,
-        access_code: accessCode
-      };
+        access_code: accessCode // Changed from accessCode to access_code
+      });
 
-      console.log('Sending registration data:', userData);
-      const response = await axios.post('http://localhost:8000/api/auth/register', userData);
-      console.log('Registration response:', response.data);
+      // Handle successful registration
+      localStorage.setItem('token', response.data.token);
+      const userInfo = {
+        role: response.data.role,
+        userId: response.data.id,
+        username: response.data.username,
+        firstName: response.data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+
+      // Show success modal
+      setSuccessData({
+        role: response.data.role,
+        classInfo: response.data.class_info
+      });
+      setShowSuccessModal(true);
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      // Handle error message properly
+      const errorMessage = error.response?.data?.detail || 'Registration failed. Please try again.';
+      setErrorMessage(typeof errorMessage === 'object' ? errorMessage.msg : errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Google Sign Up Handlers
+  const handleGoogleSignUpSuccess = async (credentialResponse) => {
+    try {
+      // Check if role is selected
+      if (!role) {
+        setErrorMessage("Please select a role before signing up with Google");
+        return;
+      }
+
+      // Check if access code is provided for Teacher/Admin roles
+      if ((role === 'TEACHER' || role === 'ADMIN') && !accessCode) {
+        setErrorMessage(`Please enter an access code for ${role.toLowerCase()} role`);
+        return;
+      }
+
+      setIsLoading(true);
+      setErrorMessage("");
       
-      if (response.data.token) {
-        // Store auth token
-        localStorage.setItem('token', response.data.token);
+      // Get the ID token from the Google response
+      const { credential } = credentialResponse;
+      
+      // Send the token to your backend for verification
+      const response = await fetch('http://localhost:8000/api/auth/google-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          token: credential,
+          role: role,
+          accessCode: accessCode || undefined
+        }),
+        credentials: 'include'
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to sign up with Google');
+      }
+      
+      // Store user info in localStorage
+      localStorage.setItem('token', data.token);
+      
+      // Store user info
+      const userInfo = {
+        role: data.role,
+        userId: data.id,
+        username: data.username,
+        firstName: data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+      
+      // For students, store class info
+      if (data.role === 'STUDENT' && data.class_info) {
+        const classInfo = {
+          id: data.class_info.id,
+          name: data.class_info.name,
+          code: data.class_info.access_code
+        };
+        localStorage.setItem('class_info', JSON.stringify(classInfo));
+      }
+      
+      // Show success modal with user role information
+      setSuccessData({
+        role: data.role,
+        classInfo: data.class_info
+      });
+      setShowSuccessModal(true);
+      
+    } catch (error) {
+      console.error('Google sign up failed:', error);
+      setErrorMessage(error.message || 'Google sign up failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignUpFailure = (error) => {
+    console.error('Google sign up error:', error);
+    setErrorMessage('Google sign up failed. Please try again.');
+  };
+
+  const googleSignUp = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        // Check if role is selected
+        if (!role) {
+          setErrorMessage("Please select a role before signing up with Google");
+          return;
+        }
+
+        // Check if access code is provided for Teacher/Admin roles
+        if ((role === 'TEACHER' || role === 'ADMIN') && !accessCode) {
+          setErrorMessage(`Please enter an access code for ${role.toLowerCase()} role`);
+          return;
+        }
+        
+        setIsLoading(true);
+        setErrorMessage("");
+        
+        // Get user information from Google using the access token
+        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: {
+            Authorization: `Bearer ${tokenResponse.access_token}`,
+          },
+        });
+        
+        const googleUserInfo = await userInfoResponse.json();
+        
+        // Send the user info to your backend
+        const response = await fetch('http://localhost:8000/api/auth/google-signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            googleData: {
+              email: googleUserInfo.email,
+              firstName: googleUserInfo.given_name,
+              lastName: googleUserInfo.family_name,
+              googleId: googleUserInfo.sub,
+              picture: googleUserInfo.picture
+            },
+            role: role,
+            accessCode: accessCode || undefined
+          }),
+          credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.detail || 'Failed to sign up with Google');
+        }
+        
+        // Store user info in localStorage
+        localStorage.setItem('token', data.token);
         
         // Store user info
         const userInfo = {
-          role: response.data.role,
-          userId: response.data.id,
-          username: response.data.username,
-          firstName: response.data.first_name,
+          role: data.role,
+          userId: data.id,
+          username: data.username,
+          firstName: data.first_name,
         };
         localStorage.setItem('user_info', JSON.stringify(userInfo));
         
         // For students, store class info
-        if (response.data.role === 'STUDENT' && response.data.class_info) {
+        if (data.role === 'STUDENT' && data.class_info) {
           const classInfo = {
-            id: response.data.class_info.id,
-            name: response.data.class_info.name,
-            code: response.data.class_info.access_code
+            id: data.class_info.id,
+            name: data.class_info.name,
+            code: data.class_info.access_code
           };
-          console.log('Storing class info:', classInfo);
           localStorage.setItem('class_info', JSON.stringify(classInfo));
         }
         
+        // Show success modal with user role information
         setSuccessData({
-          role: response.data.role,
-          classInfo: response.data.class_info
+          role: data.role,
+          classInfo: data.class_info
         });
-        console.log('Set success data:', {
-          role: response.data.role,
-          classInfo: response.data.class_info
-        });
-        
         setShowSuccessModal(true);
+        
+      } catch (error) {
+        console.error('Google sign up failed:', error);
+        setErrorMessage(error.message || 'Google sign up failed. Please try again.');
+      } finally {
+        setIsLoading(false);
       }
+    },
+    onError: handleGoogleSignUpFailure,
+    scopes: 'email profile'
+  });
+
+  const handleMicrosoftSignUp = async () => {
+    try {
+      // Check if role is selected
+      if (!role) {
+        setErrorMessage("Please select a role");
+        return;
+      }
+
+      // Validate access code for teachers and admins
+      if ((role === 'TEACHER' || role === 'ADMIN') && !accessCode) {
+        setErrorMessage(`Please enter the ${role.toLowerCase()} access code`);
+        return;
+      }
+
+      setIsLoading(true);
+      const response = await instance.loginPopup(loginRequest);
+      
+      // Send token to backend with role and access code
+      const backendResponse = await axios.post('/api/auth/microsoft-signup', {
+        msUserData: {
+          email: response.account.username,
+          firstName: response.account.name?.split(' ')[0] || '',
+          lastName: response.account.name?.split(' ')[1] || '',
+          microsoftId: response.account.localAccountId
+        },
+        role: role,
+        accessCode: accessCode
+      });
+      
+      // Handle successful signup
+      localStorage.setItem('token', backendResponse.data.token);
+      const userInfo = {
+        role: backendResponse.data.role,
+        userId: backendResponse.data.id,
+        username: backendResponse.data.username,
+        firstName: backendResponse.data.first_name,
+      };
+      localStorage.setItem('user_info', JSON.stringify(userInfo));
+
+      // Show success modal with role info
+      setSuccessData({
+        role: backendResponse.data.role
+      });
+      setShowSuccessModal(true);
+      
     } catch (error) {
-      console.error('Registration error:', error);
-      setErrorMessage(error.response?.data?.detail || "Registration failed");
+      console.error('Microsoft signup error:', error);
+      if (error.response?.status === 403) {
+        setErrorMessage("Invalid access code");
+      } else if (error.response?.status === 400) {
+        setErrorMessage("User already exists. Please sign in instead.");
+      } else {
+        setErrorMessage(error.response?.data?.detail || error.message || 'Microsoft signup failed');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -374,15 +605,44 @@ const SignUp = () => {
             </motion.p>
           )}
 
+          {/* Regular sign up button */}
           <motion.button
             type="submit"
-            className={`w-full p-4 mt-6 text-white rounded-lg text-lg focus:outline-none ${darkMode ? 'bg-teal-700 hover:bg-teal-600' : 'bg-blue-600 hover:bg-blue-700'} transition-colors duration-300`}
+            className={`w-full p-4 text-white rounded-lg text-lg focus:outline-none ${darkMode ? 'bg-teal-700 hover:bg-teal-600' : 'bg-blue-600 hover:bg-blue-700'} transition-colors duration-300`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
             Sign Up
           </motion.button>
         </form>
+
+        {/* Divider */}
+        <div className="mt-6 mb-6 flex items-center">
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+          <span className="mx-4 text-sm text-gray-500 dark:text-gray-400">or continue with</span>
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+        </div>
+
+        {/* Social signup buttons */}
+        <div className="text-center">
+          <GoogleLogin
+            onSuccess={handleGoogleSignUpSuccess}
+            onError={handleGoogleSignUpFailure}
+            text="signup_with"
+          />
+          <button
+            onClick={handleMicrosoftSignUp}
+            className="mt-4 flex items-center gap-2 w-full p-2 text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-sm transition-all duration-300"
+            style={{ height: '40px' }}
+          >
+            <div className="flex-1 flex items-center">
+              <FaMicrosoft className="text-[#00a4ef] text-xl ml-1" />
+            </div>
+            <div className="flex-[2] text-center pr-20 text-sm">
+              <span>Sign up with Microsoft</span>
+            </div>
+          </button>
+        </div>
 
         <div className="mt-6 text-center">
           <p className="text-sm">
