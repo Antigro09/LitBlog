@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
@@ -5,20 +7,89 @@ import axios from "axios"
 import Navbar from "./components/Navbar"
 import Loader from "./components/Loader"
 
-// Sample background and profile image options
+// Animated avatar options
+const AVATAR_OPTIONS = [
+  {
+    id: "robot",
+    name: "Robot",
+    animation: "bounce",
+    emoji: "🤖",
+    bgColor: "bg-blue-500",
+  },
+  {
+    id: "alien",
+    name: "Alien",
+    animation: "pulse",
+    emoji: "👽",
+    bgColor: "bg-green-500",
+  },
+  {
+    id: "ghost",
+    name: "Ghost",
+    animation: "wiggle",
+    emoji: "👻",
+    bgColor: "bg-purple-500",
+  },
+  {
+    id: "ninja",
+    name: "Ninja",
+    animation: "spin",
+    emoji: "🥷",
+    bgColor: "bg-red-500",
+  },
+  {
+    id: "astronaut",
+    name: "Astronaut",
+    animation: "float",
+    emoji: "👨‍🚀",
+    bgColor: "bg-indigo-500",
+  },
+  {
+    id: "wizard",
+    name: "Wizard",
+    animation: "sparkle",
+    emoji: "🧙",
+    bgColor: "bg-amber-500",
+  },
+]
+
+// Background options
 const BACKGROUND_OPTIONS = [
   "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
   "https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
   "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1486520299386-6d106b22014b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
+  "https://images.unsplash.com/photo-1486520299386-6d106b22014b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
 ]
 
-const PROFILE_OPTIONS = [
-  "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&h=200&q=80",
-  "https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&h=200&q=80",
-  "https://images.unsplash.com/photo-1527980965255-d3b416303d12?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&h=200&q=80",
-  "https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&h=200&q=80"
-]
+// Custom animation styles
+const customAnimationStyles = `
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(-3deg); }
+    50% { transform: rotate(3deg); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes sparkle {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.2); }
+  }
+
+  .animate-wiggle {
+    animation: wiggle 1s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-sparkle {
+    animation: sparkle 2s ease-in-out infinite;
+  }
+`
 
 const StudentProfile = () => {
   const [name, setName] = useState("")
@@ -36,6 +107,8 @@ const StudentProfile = () => {
   const [activeTab, setActiveTab] = useState("posts")
   const [showProfileOptions, setShowProfileOptions] = useState(false)
   const [showCoverOptions, setShowCoverOptions] = useState(false)
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0])
+  const [avatarColor, setAvatarColor] = useState("bg-blue-500")
 
   const navigate = useNavigate()
   const [userInfo, setUserInfo] = useState(null)
@@ -51,6 +124,8 @@ const StudentProfile = () => {
     role: "STUDENT",
     profile_image: null,
     cover_image: null,
+    avatar_id: "robot",
+    avatar_color: "bg-blue-500",
   }
 
   const MOCK_POSTS = [
@@ -122,6 +197,17 @@ const StudentProfile = () => {
     }
   }, [darkMode])
 
+  // Add custom animation styles to document head
+  useEffect(() => {
+    const styleElement = document.createElement("style")
+    styleElement.innerHTML = customAnimationStyles
+    document.head.appendChild(styleElement)
+
+    return () => {
+      document.head.removeChild(styleElement)
+    }
+  }, [])
+
   // Load saved mock data from localStorage if available
   const loadSavedMockData = () => {
     const savedMockData = localStorage.getItem("mock_user_data")
@@ -143,6 +229,16 @@ const StudentProfile = () => {
       setBio(mockUserData.bio)
       setImage(mockUserData.profile_image)
       setCoverImage(mockUserData.cover_image)
+
+      // Set avatar if available
+      if (mockUserData.avatar_id) {
+        const avatar = AVATAR_OPTIONS.find((a) => a.id === mockUserData.avatar_id) || AVATAR_OPTIONS[0]
+        setSelectedAvatar(avatar)
+      }
+      if (mockUserData.avatar_color) {
+        setAvatarColor(mockUserData.avatar_color)
+      }
+
       setUserPosts(MOCK_POSTS)
       setLoading(false)
       return
@@ -174,6 +270,15 @@ const StudentProfile = () => {
         setCoverImage(parsedUserInfo.cover_image)
       }
 
+      // Set avatar if available
+      if (parsedUserInfo.avatar_id) {
+        const avatar = AVATAR_OPTIONS.find((a) => a.id === parsedUserInfo.avatar_id) || AVATAR_OPTIONS[0]
+        setSelectedAvatar(avatar)
+      }
+      if (parsedUserInfo.avatar_color) {
+        setAvatarColor(parsedUserInfo.avatar_color)
+      }
+
       // Fetch user's posts
       fetchUserPosts(parsedUserInfo)
       setLoading(false)
@@ -187,6 +292,16 @@ const StudentProfile = () => {
       setBio(mockUserData.bio)
       setImage(mockUserData.profile_image)
       setCoverImage(mockUserData.cover_image)
+
+      // Set avatar if available
+      if (mockUserData.avatar_id) {
+        const avatar = AVATAR_OPTIONS.find((a) => a.id === mockUserData.avatar_id) || AVATAR_OPTIONS[0]
+        setSelectedAvatar(avatar)
+      }
+      if (mockUserData.avatar_color) {
+        setAvatarColor(mockUserData.avatar_color)
+      }
+
       setUserPosts(MOCK_POSTS)
       setLoading(false)
     }
@@ -196,190 +311,226 @@ const StudentProfile = () => {
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem("token")
         if (!token) {
-          navigate('/sign-in');
-          return;
+          navigate("/sign-in")
+          return
         }
 
         // Fetch user profile data with Bearer token
-        const response = await axios.get('/api/user/profile', {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        const response = await axios.get("/api/user/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
 
-        const profileData = response.data;
-        setUserInfo(profileData);
-        setName(`${profileData.first_name || ''} ${profileData.last_name || ''}`);
-        setFirstName(profileData.first_name || '');
-        setLastName(profileData.last_name || '');
-        setBio(profileData.bio || "Share a little about yourself...");
-        setImage(profileData.profile_image);
-        setCoverImage(profileData.cover_image);
+        const profileData = response.data
+        setUserInfo(profileData)
+        setName(`${profileData.first_name || ""} ${profileData.last_name || ""}`)
+        setFirstName(profileData.first_name || "")
+        setLastName(profileData.last_name || "")
+        setBio(profileData.bio || "Share a little about yourself...")
+        setImage(profileData.profile_image)
+        setCoverImage(profileData.cover_image)
+
+        // Set avatar if available
+        if (profileData.avatar_id) {
+          const avatar = AVATAR_OPTIONS.find((a) => a.id === profileData.avatar_id) || AVATAR_OPTIONS[0]
+          setSelectedAvatar(avatar)
+        }
+        if (profileData.avatar_color) {
+          setAvatarColor(profileData.avatar_color)
+        }
 
         // Don't fetch posts yet since that endpoint isn't ready
-        setLoading(false);
+        setLoading(false)
       } catch (error) {
-        console.error("Error fetching profile:", error);
+        console.error("Error fetching profile:", error)
         // If we have userInfo in localStorage, use that as fallback
-        const storedUserInfo = localStorage.getItem('user_info');
+        const storedUserInfo = localStorage.getItem("user_info")
         if (storedUserInfo) {
-          const parsedUserInfo = JSON.parse(storedUserInfo);
-          setUserInfo(parsedUserInfo);
-          setName(`${parsedUserInfo.first_name || ''} ${parsedUserInfo.last_name || ''}`);
-          setFirstName(parsedUserInfo.first_name || '');
-          setLastName(parsedUserInfo.last_name || '');
-          setBio(parsedUserInfo.bio || "Share a little about yourself...");
-          setImage(parsedUserInfo.profile_image);
-          setCoverImage(parsedUserInfo.cover_image);
-        }
-        setError("Failed to load profile data");
-        setLoading(false);
-      }
-    };
+          const parsedUserInfo = JSON.parse(storedUserInfo)
+          setUserInfo(parsedUserInfo)
+          setName(`${parsedUserInfo.first_name || ""} ${parsedUserInfo.last_name || ""}`)
+          setFirstName(parsedUserInfo.first_name || "")
+          setLastName(parsedUserInfo.last_name || "")
+          setBio(parsedUserInfo.bio || "Share a little about yourself...")
+          setImage(parsedUserInfo.profile_image)
+          setCoverImage(parsedUserInfo.cover_image)
 
-    fetchProfileData();
-  }, [navigate]);
+          // Set avatar if available
+          if (parsedUserInfo.avatar_id) {
+            const avatar = AVATAR_OPTIONS.find((a) => a.id === parsedUserInfo.avatar_id) || AVATAR_OPTIONS[0]
+            setSelectedAvatar(avatar)
+          }
+          if (parsedUserInfo.avatar_color) {
+            setAvatarColor(parsedUserInfo.avatar_color)
+          }
+        }
+        setError("Failed to load profile data")
+        setLoading(false)
+      }
+    }
+
+    fetchProfileData()
+  }, [navigate])
 
   // Fetch user's posts
   const fetchUserPosts = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token")
       if (!token) {
-        navigate('/sign-in');
-        return;
+        navigate("/sign-in")
+        return
       }
 
-      const response = await axios.get('/api/user/posts', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get("/api/user/posts", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
 
-      setUserPosts(response.data);
+      setUserPosts(response.data)
     } catch (error) {
-      console.error("Error fetching user posts:", error);
-      setError("Failed to load posts");
+      console.error("Error fetching user posts:", error)
+      setError("Failed to load posts")
     }
-  };
+  }
 
   // Handle profile updates
   const handleProfileUpdate = async () => {
     if (!isEditing) {
-      setIsEditing(true);
-      return;
+      setIsEditing(true)
+      return
     }
 
     try {
-      setSaving(true);
-      const token = localStorage.getItem('token');
-      
+      setSaving(true)
+      const token = localStorage.getItem("token")
+
       // Update profile information
-      await axios.post('/api/user/update-profile', {
-        first_name: firstName,
-        last_name: lastName,
-        bio: bio
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post(
+        "/api/user/update-profile",
+        {
+          first_name: firstName,
+          last_name: lastName,
+          bio: bio,
+          avatar_id: selectedAvatar.id,
+          avatar_color: avatarColor,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      )
 
       // Update the displayed name
-      setName(`${firstName} ${lastName}`);
-      setIsEditing(false);
-      setSaving(false);
+      setName(`${firstName} ${lastName}`)
+      setIsEditing(false)
+      setSaving(false)
 
       // Update local userInfo state
-      setUserInfo(prev => ({
+      setUserInfo((prev) => ({
         ...prev,
         first_name: firstName,
         last_name: lastName,
-        bio: bio
-      }));
+        bio: bio,
+        avatar_id: selectedAvatar.id,
+        avatar_color: avatarColor,
+      }))
 
+      // Save to localStorage for mock data persistence
+      if (useMockData) {
+        const updatedMockUser = {
+          ...userInfo,
+          first_name: firstName,
+          last_name: lastName,
+          bio: bio,
+          avatar_id: selectedAvatar.id,
+          avatar_color: avatarColor,
+        }
+        localStorage.setItem("mock_user_data", JSON.stringify(updatedMockUser))
+      }
     } catch (error) {
-      console.error("Error updating profile:", error);
-      setSaving(false);
-      setError("Failed to update profile");
+      console.error("Error updating profile:", error)
+      setSaving(false)
+      setError("Failed to update profile")
     }
-  };
+  }
 
   // Handle image upload
   const handleImageUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const file = event.target.files[0]
+    if (!file) return
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const formData = new FormData()
+      formData.append("file", file)
 
-      const token = localStorage.getItem('token');
-      setUploadProgress(0);
+      const token = localStorage.getItem("token")
+      setUploadProgress(0)
 
-      const response = await axios.post('/api/user/upload-profile-image', formData, {
+      const response = await axios.post("/api/user/upload-profile-image", formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
         },
         onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(progress);
-        }
-      });
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          setUploadProgress(progress)
+        },
+      })
 
-      setImage(response.data.image_url);
-      setUploadProgress(0);
+      setImage(response.data.image_url)
+      setUploadProgress(0)
 
       // Update userInfo state
-      setUserInfo(prev => ({
+      setUserInfo((prev) => ({
         ...prev,
-        profile_image: response.data.image_url
-      }));
-
+        profile_image: response.data.image_url,
+      }))
     } catch (error) {
-      console.error("Error uploading image:", error);
-      setUploadProgress(0);
-      setError("Failed to upload image");
+      console.error("Error uploading image:", error)
+      setUploadProgress(0)
+      setError("Failed to upload image")
     }
-  };
+  }
 
   // Handle cover image upload
   const handleCoverImageUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const file = event.target.files[0]
+    if (!file) return
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const formData = new FormData()
+      formData.append("file", file)
 
-      const token = localStorage.getItem('token');
-      setUploadProgress(0);
+      const token = localStorage.getItem("token")
+      setUploadProgress(0)
 
-      const response = await axios.post('/api/user/upload-cover-image', formData, {
+      const response = await axios.post("/api/user/upload-cover-image", formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
         },
         onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(progress);
-        }
-      });
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          setUploadProgress(progress)
+        },
+      })
 
-      setCoverImage(response.data.image_url);
-      setUploadProgress(0);
+      setCoverImage(response.data.image_url)
+      setUploadProgress(0)
 
       // Update userInfo state
-      setUserInfo(prev => ({
+      setUserInfo((prev) => ({
         ...prev,
-        cover_image: response.data.image_url
-      }));
-
+        cover_image: response.data.image_url,
+      }))
     } catch (error) {
-      console.error("Error uploading cover image:", error);
-      setUploadProgress(0);
-      setError("Failed to upload cover image");
+      console.error("Error uploading cover image:", error)
+      setUploadProgress(0)
+      setError("Failed to upload cover image")
     }
-  };
+  }
 
   const selectProfileImage = (imageUrl) => {
     setImage(imageUrl)
@@ -411,19 +562,49 @@ const StudentProfile = () => {
     }
   }
 
-  const handleSignOut = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_info');
-    localStorage.removeItem('class_info');
-    setUserInfo(null);
-    navigate('/');
-  };
-  useEffect(() => {
-    const storedUserInfo = localStorage.getItem('user_info');
-    if (storedUserInfo) {
-      setUserInfo(JSON.parse(storedUserInfo));
+  const selectAvatar = (avatar) => {
+    setSelectedAvatar(avatar)
+    setShowProfileOptions(false)
+
+    // Save to localStorage for mock data persistence
+    if (useMockData) {
+      const updatedMockUser = {
+        ...userInfo,
+        avatar_id: avatar.id,
+      }
+      localStorage.setItem("mock_user_data", JSON.stringify(updatedMockUser))
+      setUserInfo(updatedMockUser)
     }
-  }, []);
+  }
+
+  const selectAvatarColor = (color) => {
+    setAvatarColor(color)
+
+    // Save to localStorage for mock data persistence
+    if (useMockData) {
+      const updatedMockUser = {
+        ...userInfo,
+        avatar_color: color,
+      }
+      localStorage.setItem("mock_user_data", JSON.stringify(updatedMockUser))
+      setUserInfo(updatedMockUser)
+    }
+  }
+
+  const handleSignOut = () => {
+    localStorage.removeItem("token")
+    localStorage.removeItem("user_info")
+    localStorage.removeItem("class_info")
+    setUserInfo(null)
+    navigate("/")
+  }
+
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem("user_info")
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo))
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -438,6 +619,26 @@ const StudentProfile = () => {
     )
   }
 
+  // Animation keyframes for avatar animations
+  const getAvatarAnimation = () => {
+    switch (selectedAvatar.animation) {
+      case "bounce":
+        return "animate-bounce"
+      case "pulse":
+        return "animate-pulse"
+      case "spin":
+        return "animate-spin"
+      case "wiggle":
+        return "animate-wiggle"
+      case "float":
+        return "animate-float"
+      case "sparkle":
+        return "animate-sparkle"
+      default:
+        return ""
+    }
+  }
+
   return (
     <div
       className={`min-h-screen transition-all duration-500 ${darkMode ? "bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200" : "bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900"}`}
@@ -445,32 +646,17 @@ const StudentProfile = () => {
       {/* Navbar */}
       <Navbar userInfo={userInfo} onSignOut={handleSignOut} darkMode={darkMode} logo="./logo.png" />
 
-      {/* Mock Data Toggle Button */}
-      <motion.div
-        className="fixed top-5 left-4 z-10 transition-transform transform hover:scale-110"
-        whileHover={{ scale: 1.1 }}
-      >
-      </motion.div>
-
       {/* Toggle Dark Mode Button */}
       <motion.div
         className="fixed top-5 right-4 z-10 transition-transform transform hover:scale-110"
         whileHover={{ scale: 1.1 }}
       >
-          <button 
+        <button
           onClick={toggleDarkMode}
           className={`${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-white hover:bg-gray-100"} ${darkMode ? "text-white" : "text-gray-800"} p-3 rounded-full shadow-lg transition-all duration-200 transform hover:-translate-y-1`}
         >
           {darkMode ? "🌞" : "🌙"}
         </button>
-      </motion.div>
-
-      {/* Sign Out Button - Modern Floating Button */}
-      <motion.div
-        className="fixed top-20 right-4 z-10 transition-transform transform hover:scale-110"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-      >
       </motion.div>
 
       {/* Error/Success message if any */}
@@ -481,7 +667,10 @@ const StudentProfile = () => {
           } text-white px-6 py-3 rounded-lg shadow-lg flex items-center`}
         >
           {error}
-          <button className="ml-3 text-white hover:bg-opacity-20 bg-white bg-opacity-10 rounded-full p-1" onClick={() => setError(null)}>
+          <button
+            className="ml-3 text-white hover:bg-opacity-20 bg-white bg-opacity-10 rounded-full p-1"
+            onClick={() => setError(null)}
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -513,8 +702,9 @@ const StudentProfile = () => {
             <img
               src={
                 coverImage ||
-                "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1200&q=80"
-               || "/placeholder.svg"}
+                "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1200&q=80" ||
+                "/placeholder.svg"
+              }
               alt="Cover"
               className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
             />
@@ -538,7 +728,7 @@ const StudentProfile = () => {
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
                     <polyline points="21 15 16 10 5 21"></polyline>
-                    </svg>
+                  </svg>
                 </button>
                 <label
                   htmlFor="coverImageUpload"
@@ -565,8 +755,8 @@ const StudentProfile = () => {
                     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
                     <circle cx="12" cy="13" r="3"></circle>
                   </svg>
-              </label>
-            </div>
+                </label>
+              </div>
             )}
 
             {/* Cover Image Options */}
@@ -579,7 +769,11 @@ const StudentProfile = () => {
                       className="w-20 h-12 rounded-md overflow-hidden cursor-pointer border-2 hover:border-blue-500 transition-all"
                       onClick={() => selectCoverImage(bgUrl)}
                     >
-                      <img src={bgUrl || "/placeholder.svg"} alt={`Background ${index + 1}`} className="w-full h-full object-cover" />
+                      <img
+                        src={bgUrl || "/placeholder.svg"}
+                        alt={`Background ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   ))}
                 </div>
@@ -593,15 +787,15 @@ const StudentProfile = () => {
                 <div className="w-full mt-1 bg-gray-300 rounded-full h-1.5">
                   <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
                 </div>
-                </div>
-              )}
+              </div>
+            )}
           </div>
 
           {/* Profile Info Section */}
           <div className="px-8 pb-8 relative">
             {/* Profile Pic and Info */}
             <div className="flex flex-col items-center text-center mb-6">
-              {/* Profile Picture */}
+              {/* Profile Picture / Animated Avatar */}
               <div className="relative mb-6">
                 <div
                   className={`h-32 w-32 rounded-full overflow-hidden border-4 ${darkMode ? "border-gray-700" : "border-white"} shadow-lg mx-auto -mt-16`}
@@ -614,9 +808,9 @@ const StudentProfile = () => {
                     />
                   ) : (
                     <div
-                      className={`w-full h-full flex items-center justify-center text-3xl font-bold ${darkMode ? "bg-gray-700 text-gray-300" : "bg-blue-100 text-blue-500"}`}
+                      className={`w-full h-full flex items-center justify-center text-4xl ${avatarColor} ${getAvatarAnimation()}`}
                     >
-                      {userInfo?.first_name?.[0] || userInfo?.username?.[0] || "?"}
+                      {selectedAvatar.emoji}
                     </div>
                   )}
                 </div>
@@ -641,8 +835,8 @@ const StudentProfile = () => {
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                         <circle cx="8.5" cy="8.5" r="1.5"></circle>
                         <polyline points="21 15 16 10 5 21"></polyline>
-                  </svg>
-                </button>
+                      </svg>
+                    </button>
                     <label
                       className={`cursor-pointer w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? "bg-gray-700" : "bg-white"} border ${darkMode ? "border-gray-600" : "border-gray-200"} shadow-md transition-all duration-200 transform hover:scale-110`}
                     >
@@ -665,30 +859,55 @@ const StudentProfile = () => {
                   </div>
                 )}
 
-                {/* Profile Image Options */}
+                {/* Profile Image/Avatar Options */}
                 {showProfileOptions && (
                   <div className="absolute -right-24 bottom-0 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-3 z-10">
-                    <div className="grid grid-cols-3 gap-2">
-                      {PROFILE_OPTIONS.map((profileUrl, index) => (
-                        <div
-                          key={index}
-                          className="w-16 h-16 rounded-full overflow-hidden cursor-pointer border-2 hover:border-blue-500 transition-all"
-                          onClick={() => selectProfileImage(profileUrl)}
-                        >
-                          <img src={profileUrl || "/placeholder.svg"} alt={`Avatar ${index + 1}`} className="w-full h-full object-cover" />
-                        </div>
-                      ))}
-              </div>
-            </div>
+                    <div className="mb-3">
+                      <h4 className="text-sm font-semibold mb-2">Choose Avatar</h4>
+                      <div className="grid grid-cols-3 gap-2">
+                        {AVATAR_OPTIONS.map((avatar) => (
+                          <div
+                            key={avatar.id}
+                            className={`w-16 h-16 rounded-full overflow-hidden cursor-pointer border-2 ${selectedAvatar.id === avatar.id ? "border-blue-500" : "border-transparent"} hover:border-blue-500 transition-all flex items-center justify-center ${avatar.bgColor}`}
+                            onClick={() => selectAvatar(avatar)}
+                          >
+                            <span className="text-3xl">{avatar.emoji}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Avatar Color</h4>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          "bg-blue-500",
+                          "bg-green-500",
+                          "bg-purple-500",
+                          "bg-red-500",
+                          "bg-yellow-500",
+                          "bg-pink-500",
+                          "bg-indigo-500",
+                          "bg-teal-500",
+                        ].map((color) => (
+                          <div
+                            key={color}
+                            className={`w-8 h-8 rounded-full cursor-pointer border-2 ${avatarColor === color ? "border-white" : "border-transparent"} hover:border-white transition-all ${color}`}
+                            onClick={() => selectAvatarColor(color)}
+                          ></div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {uploadProgress > 0 && uploadProgress < 100 && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
                     <div className="text-white text-sm font-bold">{uploadProgress}%</div>
-          </div>
+                  </div>
                 )}
-        </div>
-        
+              </div>
+
               {/* User Info - now centered */}
               <div className="text-center">
                 {isEditing ? (
@@ -712,8 +931,8 @@ const StudentProfile = () => {
                         } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         placeholder="Last Name"
                       />
-            </div>
-            </div>
+                    </div>
+                  </div>
                 ) : (
                   <h2 className={`text-2xl font-bold ${darkMode ? "text-white" : "text-gray-800"}`}>{name}</h2>
                 )}
@@ -740,11 +959,11 @@ const StudentProfile = () => {
                   >
                     {userInfo?.role || "STUDENT"}
                   </span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Bio Section */}
+
+            {/* Bio Section */}
             <div className="mb-8">
               <h3 className={`text-lg font-semibold mb-2 ${darkMode ? "text-white" : "text-gray-800"} text-center`}>
                 About Me
@@ -764,27 +983,15 @@ const StudentProfile = () => {
               )}
             </div>
 
-            {/* Stats Section */}
-            <div className="grid grid-cols-3 gap-4 mb-6 text-center">
+            {/* Stats Section - Removed followers/following, only showing posts */}
+            <div className="mb-6 text-center">
               <div
-                className={`p-4 rounded-xl ${darkMode ? "bg-gray-700/50" : "bg-blue-50"} transition-transform duration-200 transform hover:scale-105`}
+                className={`p-4 rounded-xl ${darkMode ? "bg-gray-700/50" : "bg-blue-50"} transition-transform duration-200 transform hover:scale-105 inline-block min-w-[120px]`}
               >
                 <div className={`text-2xl font-bold ${darkMode ? "text-white" : "text-gray-800"}`}>
                   {userPosts.length}
                 </div>
                 <div className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>Posts</div>
-              </div>
-              <div
-                className={`p-4 rounded-xl ${darkMode ? "bg-gray-700/50" : "bg-blue-50"} transition-transform duration-200 transform hover:scale-105`}
-              >
-                <div className={`text-2xl font-bold ${darkMode ? "text-white" : "text-gray-800"}`}>0</div>
-                <div className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>Followers</div>
-              </div>
-              <div
-                className={`p-4 rounded-xl ${darkMode ? "bg-gray-700/50" : "bg-blue-50"} transition-transform duration-200 transform hover:scale-105`}
-              >
-                <div className={`text-2xl font-bold ${darkMode ? "text-white" : "text-gray-800"}`}>0</div>
-                <div className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>Following</div>
               </div>
             </div>
 
@@ -915,10 +1122,10 @@ const StudentProfile = () => {
               onClick={() => setActiveTab("saved")}
             >
               Saved
-              </button>
+            </button>
           </div>
         </div>
-        
+
         {/* Recent Posts Section */}
         {activeTab === "posts" && (
           <motion.div
@@ -1080,7 +1287,7 @@ const StudentProfile = () => {
       {/* Floating Action Button */}
       <motion.div className="fixed bottom-8 right-8" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
         <Link to="/student-hub">
-          <button 
+          <button
             className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center ${
               darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"
             } text-white transition-all duration-200 transform hover:-translate-y-1`}
@@ -1107,3 +1314,4 @@ const StudentProfile = () => {
 }
 
 export default StudentProfile
+
