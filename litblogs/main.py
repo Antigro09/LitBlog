@@ -1101,90 +1101,42 @@ async def get_teacher_dashboard(
 ):
     """Get teacher dashboard data"""
     if current_user.role != models.UserRole.TEACHER:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Teacher role required."
-        )
+        raise HTTPException(status_code=403, detail="Not a teacher")
     
-    try:
-        # Get teacher's classes
-        classes = db.query(models.Class).filter(
-            models.Class.teacher_id == current_user.id
-        ).all()
-        
-        # Format class data with student counts
-        class_data = []
-        for class_ in classes:
-            # Count students in this class
-            student_count = db.query(models.ClassEnrollment).filter(
-                models.ClassEnrollment.class_id == class_.id
-            ).count()
-            
-            # Count posts in this class
-            post_count = db.query(models.Blog).filter(
-                models.Blog.class_id == class_.id
-            ).count()
-            
-            class_data.append({
-                "id": class_.id,
-                "name": class_.name,
-                "description": class_.description,
-                "access_code": class_.access_code,
-                "created_at": class_.created_at,
-                "student_count": student_count,
-                "post_count": post_count
-            })
-        
-        # Get recent activity (last 10 posts across all classes)
-        recent_posts = db.query(models.Blog).join(
-            models.Class, models.Blog.class_id == models.Class.id
-        ).filter(
-            models.Class.teacher_id == current_user.id
-        ).order_by(
-            models.Blog.created_at.desc()
-        ).limit(10).all()
-        
-        activity = []
-        for post in recent_posts:
-            # Get student info
-            student = db.query(models.User).filter(
-                models.User.id == post.owner_id
-            ).first()
-            
-            # Get class info
-            class_ = db.query(models.Class).filter(
-                models.Class.id == post.class_id
-            ).first()
-            
-            activity.append({
-                "id": post.id,
-                "title": post.title,
-                "created_at": post.created_at,
-                "student_name": f"{student.first_name} {student.last_name}",
-                "student_id": student.id,
-                "class_name": class_.name,
-                "class_id": class_.id
-            })
-        
-        return {
-            "teacher": {
-                "id": current_user.id,
-                "name": f"{current_user.first_name} {current_user.last_name}",
-                "email": current_user.email
-            },
-            "classes": class_data,
-            "recent_activity": activity,
-            "total_students": sum(c["student_count"] for c in class_data),
-            "total_classes": len(class_data),
-            "total_posts": sum(c["post_count"] for c in class_data)
-        }
+    # Get teacher info
+    teacher = db.query(models.Teacher).filter(models.Teacher.user_id == current_user.id).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher profile not found")
     
-    except Exception as e:
-        print(f"Teacher dashboard error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to load dashboard: {str(e)}"
-        )
+    # Get classes taught by this teacher
+    classes = db.query(models.Class).filter(models.Class.teacher_id == teacher.id).all()
+    
+    classes_data = []
+    for class_ in classes:
+        # Count enrollments for this class
+        enrollment_count = db.query(models.ClassEnrollment).filter(
+            models.ClassEnrollment.class_id == class_.id
+        ).count()
+        
+        # Count posts in this class
+        post_count = db.query(models.Blog).filter(
+            models.Blog.class_id == class_.id
+        ).count()
+        
+        classes_data.append({
+            "id": class_.id,
+            "name": class_.name,
+            "description": class_.description,
+            "access_code": class_.access_code,
+            "enrollment_count": enrollment_count,
+            "post_count": post_count
+        })
+    
+    return {
+        "name": f"{current_user.first_name} {current_user.last_name}",
+        "email": current_user.email,
+        "classes": classes_data
+    }
 
 @app.post("/api/classes")
 async def create_class(
@@ -1355,9 +1307,9 @@ async def delete_class_post(
     return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
-@app.on_event("startup")
-async def startup_event():
-    reset_database()
+#@app.on_event("startup")
+#async def startup_event():
+    #reset_database()
 
 def generate_unique_code(db: Session, length: int = 6) -> str:
     while True:
@@ -1933,6 +1885,57 @@ async def like_comment(
         "comment_id": comment_id,
         "like_count": like_count
     }
+
+@app.get("/api/classes/{class_id}/students")
+async def get_class_students(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get all students enrolled in a class"""
+    # Check if user has access to this class
+    if current_user.role == models.UserRole.TEACHER:
+        # Teachers can access classes they created
+        class_details = db.query(models.Class).filter(models.Class.id == class_id).first()
+        if not class_details or class_details.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this class")
+    elif current_user.role == models.UserRole.STUDENT:
+        # Students can access classes they're enrolled in
+        enrollment = db.query(models.ClassEnrollment).filter(
+            models.ClassEnrollment.student_id == current_user.id,
+            models.ClassEnrollment.class_id == class_id
+        ).first()
+        if not enrollment:
+            raise HTTPException(status_code=403, detail="Not enrolled in this class")
+    else:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get all enrollments for this class
+    enrollments = db.query(models.ClassEnrollment).filter(
+        models.ClassEnrollment.class_id == class_id
+    ).all()
+    
+    # Get student details for each enrollment
+    students = []
+    for enrollment in enrollments:
+        student = db.query(models.User).filter(models.User.id == enrollment.student_id).first()
+        if student:
+            # Count posts by this student in this class
+            post_count = db.query(models.Blog).filter(
+                models.Blog.owner_id == student.id,
+                models.Blog.class_id == class_id
+            ).count()
+            
+            students.append({
+                "id": student.id,
+                "username": student.username,
+                "email": student.email,
+                "first_name": student.first_name,
+                "last_name": student.last_name,
+                "posts_count": post_count,
+            })
+    
+    return students
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

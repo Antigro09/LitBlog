@@ -19,6 +19,7 @@ const TeacherDashboard = () => {
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [allStudents, setAllStudents] = useState([]);
 
   // Combine the useEffects
   useEffect(() => {
@@ -74,7 +75,7 @@ const TeacherDashboard = () => {
     {
       title: "Total Students",
       value: classes?.reduce((acc, cls) => 
-        acc + (cls.students?.length || 0), 0
+        acc + (cls.students?.length || cls.enrollment_count || 0), 0
       ) || 0,
       color: "from-emerald-500 to-teal-500",
       icon: "👥"
@@ -116,6 +117,46 @@ const TeacherDashboard = () => {
     setUserInfo(null);
     navigate('/');
   };
+
+  const fetchAllStudents = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      // Only fetch students when the Students tab is selected
+      if (activeTab !== 'Students') return;
+      
+      // Create an array to store all students
+      let studentsList = [];
+      
+      // For each class, fetch its students
+      for (const cls of classes) {
+        const response = await axios.get(
+          `http://localhost:8000/api/classes/${cls.id}/students`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        // Add class information to each student
+        const studentsWithClass = response.data.map(student => ({
+          ...student,
+          className: cls.name,
+          classId: cls.id
+        }));
+        
+        studentsList = [...studentsList, ...studentsWithClass];
+      }
+      
+      // Set all students
+      setAllStudents(studentsList);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    }
+  };
+
+  // Call this function when the tab changes to Students
+  useEffect(() => {
+    fetchAllStudents();
+  }, [activeTab, classes]);
 
   if (loading) {
     return (
@@ -239,7 +280,7 @@ const TeacherDashboard = () => {
                           </div>
                           <div>
                             <h4 className="font-medium">{cls.name}</h4>
-                            <p className="text-sm opacity-70">{cls.students?.length || 0} students</p>
+                            <p className="text-sm opacity-70">{cls.enrollment_count || 0} students</p>
                           </div>
                         </div>
                       )) || (
@@ -324,7 +365,7 @@ const TeacherDashboard = () => {
                               Code: {cls.access_code || cls.joinCode || 'No code available'}
                             </span>
                             <span className="text-sm opacity-80">
-                              {cls.students?.length || 0} students
+                              {cls.enrollment_count || 0} students
                             </span>
                           </div>
                         </motion.div>
@@ -339,6 +380,74 @@ const TeacherDashboard = () => {
                   />
                 )}
               </div>
+            )}
+
+            {activeTab === 'Students' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="px-6 py-4"
+              >
+                <h2 className="text-2xl font-bold mb-6">All Students</h2>
+                
+                {allStudents.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className={`w-full rounded-lg ${darkMode ? 'bg-gray-800/50' : 'bg-white/80'} shadow-lg`}>
+                      <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Name</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Email</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Class</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Posts</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {allStudents.map((student, index) => (
+                          <tr key={`${student.id}-${index}`} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white">
+                                  {student.first_name?.[0] || student.username?.[0] || '?'}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="font-medium">{student.first_name} {student.last_name}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">@{student.username}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">{student.email}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                {student.className}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                {student.posts_count || 0}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <button 
+                                onClick={() => navigate(`/class/${student.classId}/student/${student.id}`)}
+                                className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    {classes.length > 0 
+                      ? "No students enrolled in your classes yet" 
+                      : "Create classes to enroll students"}
+                  </div>
+                )}
+              </motion.div>
             )}
           </motion.div>
         </motion.div>
