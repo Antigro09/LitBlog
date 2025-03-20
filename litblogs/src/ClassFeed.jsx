@@ -18,6 +18,9 @@ import Loader from './components/Loader';
 import Navbar from "./components/Navbar";
 import { Editor } from '@tinymce/tinymce-react';
 import './LitBlogs.css';
+import { toast } from 'react-hot-toast';
+import { IoMdHeart, IoMdHeartEmpty } from 'react-icons/io';
+import CommentThread from './components/CommentThread';
 
 const expandableListStyles = `
   .expandable-list {
@@ -398,6 +401,15 @@ const ClassFeed = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [activePostMenu, setActivePostMenu] = useState(null);
   const [editingPostId, setEditingPostId] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(null);
+  const [likedPosts, setLikedPosts] = useState({});
+  const [likesLoading, setLikesLoading] = useState({});
+  const [likeEffects, setLikeEffects] = useState({});
+  const [postCommentsVisible, setPostCommentsVisible] = useState({});
+  const [postComments, setPostComments] = useState({});
+  const [commentLoading, setCommentLoading] = useState({});
+  const [newCommentText, setNewCommentText] = useState({});
+  const [commentCounts, setCommentCounts] = useState({});
 
   const gf = new GiphyFetch('FEzk8anVjSKZIiInlJWd4Jo4OuYBjV9B');
 
@@ -491,6 +503,90 @@ const ClassFeed = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activePostMenu]);
+
+  useEffect(() => {
+    // Get likes for all posts on initial load
+    const fetchLikes = async () => {
+      const token = localStorage.getItem('token');
+      if (!token || !posts.length) return;
+      
+      const likesInfo = {};
+      
+      for (const post of posts) {
+        try {
+          const response = await axios.get(`http://localhost:8000/api/classes/${classId}/posts/${post.id}/likes`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          likesInfo[post.id] = {
+            count: response.data.like_count,
+            userLiked: response.data.user_liked
+          };
+        } catch (error) {
+          console.error(`Error fetching likes for post ${post.id}:`, error);
+        }
+      }
+      
+      setLikedPosts(likesInfo);
+    };
+    
+    fetchLikes();
+  }, [posts]);
+
+  useEffect(() => {
+    // Modify the existing useEffect that fetches posts
+    const fetchPostsAndCounts = async () => {
+      if (!classId) return;
+      
+      setPostsLoading(true);
+      
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        // Fetch the posts
+        const response = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        setPosts(response.data);
+        
+        // Fetch comment counts immediately after posts load
+        const counts = {};
+        
+        // Debug log to check if this function is running
+        console.log("Fetching comment counts for posts:", response.data.length);
+        
+        // We'll fetch one by one to ensure reliability
+        for (const post of response.data) {
+          try {
+            const commentResponse = await axios.get(
+              `http://localhost:8000/api/classes/${classId}/posts/${post.id}/comments?limit=1`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            counts[post.id] = commentResponse.data.total;
+            console.log(`Post ${post.id} has ${commentResponse.data.total} comments`);
+          } catch (err) {
+            console.error(`Failed to fetch comments for post ${post.id}:`, err);
+            counts[post.id] = 0;
+          }
+        }
+        
+        // Log the counts before setting state
+        console.log("Final comment counts:", counts);
+        
+        // Update comment counts
+        setCommentCounts(counts);
+      } catch (error) {
+        console.error("Error fetching posts:", error);
+        setError('Failed to load posts');
+      } finally {
+        setPostsLoading(false);
+      }
+    };
+    
+    fetchPostsAndCounts();
+  }, [classId]);
 
   const createPost = async (e) => {
     e.preventDefault();
@@ -882,6 +978,189 @@ const ClassFeed = () => {
     }
   };
 
+  const handlePostAction = async (action, post) => {
+    if (action === 'edit') {
+      // Navigate to edit post or set edit mode
+      handleEditPost(post);
+    } else if (action === 'delete') {
+      if (window.confirm('Are you sure you want to delete this post?')) {
+        try {
+          const token = localStorage.getItem('token');
+          await axios.delete(`http://localhost:8000/api/classes/${classId}/posts/${post.id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          // Refresh posts after deletion
+          const postsResponse = await axios.get(`http://localhost:8000/api/classes/${classId}/posts`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setPosts(postsResponse.data);
+          toast.success('Post deleted successfully');
+        } catch (error) {
+          console.error('Error deleting post:', error);
+          toast.error('Failed to delete post');
+        }
+      }
+    }
+    // Close the menu after action
+    setMenuOpen(null);
+  };
+
+  const handleLikePost = async (postId) => {
+    // Prevent multiple clicks
+    if (likesLoading[postId]) return;
+    
+    // Start loading
+    setLikesLoading(prev => ({ ...prev, [postId]: true }));
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Optimistic update
+      const isCurrentlyLiked = likedPosts[postId]?.userLiked || false;
+      const currentCount = likedPosts[postId]?.count || 0;
+      
+      setLikedPosts(prev => ({
+        ...prev,
+        [postId]: {
+          count: isCurrentlyLiked ? currentCount - 1 : currentCount + 1,
+          userLiked: !isCurrentlyLiked
+        }
+      }));
+      
+      // Trigger heart animation
+      setLikeEffects(prev => ({
+        ...prev,
+        [postId]: true
+      }));
+      
+      // After animation completes
+      setTimeout(() => {
+        setLikeEffects(prev => ({
+          ...prev,
+          [postId]: false
+        }));
+      }, 1000);
+      
+      // Actually call the API
+      const response = await axios.post(`http://localhost:8000/api/classes/${classId}/posts/${postId}/like`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Update with actual data from server
+      setLikedPosts(prev => ({
+        ...prev,
+        [postId]: {
+          count: response.data.like_count,
+          userLiked: response.data.action === 'liked'
+        }
+      }));
+      
+    } catch (error) {
+      console.error('Error liking post:', error);
+      toast.error('Failed to like post');
+      
+      // Revert optimistic update on error
+      const response = await axios.get(`http://localhost:8000/api/classes/${classId}/posts/${postId}/likes`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setLikedPosts(prev => ({
+        ...prev,
+        [postId]: {
+          count: response.data.like_count,
+          userLiked: response.data.user_liked
+        }
+      }));
+    } finally {
+      // End loading
+      setLikesLoading(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const loadCommentsForPost = async (postId) => {
+    if (commentLoading[postId]) return;
+    
+    setCommentLoading(prev => ({ ...prev, [postId]: true }));
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `http://localhost:8000/api/classes/${classId}/posts/${postId}/comments?limit=3`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setPostComments(prev => ({
+        ...prev,
+        [postId]: response.data.comments
+      }));
+      
+      setCommentCounts(prev => ({
+        ...prev,
+        [postId]: response.data.total
+      }));
+    } catch (error) {
+      console.error(`Error loading comments for post ${postId}:`, error);
+      toast.error('Failed to load comments');
+    } finally {
+      setCommentLoading(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const toggleComments = async (postId) => {
+    // If comments aren't already loaded, load them
+    if (!postComments[postId]) {
+      await loadCommentsForPost(postId);
+    }
+    
+    // Toggle visibility
+    setPostCommentsVisible(prev => ({
+      ...prev,
+      [postId]: !prev[postId]
+    }));
+  };
+
+  const handleSubmitComment = async (postId, e) => {
+    e.preventDefault();
+    
+    const commentText = newCommentText[postId];
+    if (!commentText || !commentText.trim()) {
+      toast.error('Comment cannot be empty');
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `http://localhost:8000/api/classes/${classId}/posts/${postId}/comments`,
+        { content: commentText },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Update comments list with new comment
+      setPostComments(prev => ({
+        ...prev,
+        [postId]: [response.data, ...(prev[postId] || [])]
+      }));
+      
+      // Update comment count
+      setCommentCounts(prev => ({
+        ...prev,
+        [postId]: (prev[postId] || 0) + 1
+      }));
+      
+      // Clear input
+      setNewCommentText(prev => ({
+        ...prev,
+        [postId]: ''
+      }));
+      
+      toast.success('Comment added');
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      toast.error('Failed to post comment');
+    }
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-gradient-to-r from-slate-800 to-gray-950 text-gray-200' : 'bg-gradient-to-r from-indigo-100 to-pink-100 text-gray-900'}`}>
       {/* Navbar */}
@@ -1024,44 +1303,33 @@ const ClassFeed = () => {
                     </div>
                   </div>
                   
-                  {/* Post Actions Menu */}
-                  {post.owner_id === userInfo?.id && (
-                    <div className="relative post-menu" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setActivePostMenu(activePostMenu === post.id ? null : post.id)}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                  {/* Post Options Menu (3 dots) */}
+                  {post.owner_id === userInfo.id && (
+                    <div className="absolute top-3 right-3">
+                      <button 
+                        onClick={() => setMenuOpen(menuOpen === post.id ? null : post.id)}
+                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                       >
-                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
                         </svg>
                       </button>
-
+                      
                       {/* Dropdown Menu */}
-                      {activePostMenu === post.id && (
-                        <div 
-                          className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-10"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                      {menuOpen === post.id && (
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-20 border dark:border-gray-700">
                           <div className="py-1">
                             <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleEditPost(post);
-                              }}
+                              onClick={() => handlePostAction('edit', post)}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                             >
-                              Edit Post
+                              Edit
                             </button>
                             <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleDeletePost(post.id);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              onClick={() => handlePostAction('delete', post)}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                             >
-                              Delete Post
+                              Delete
                             </button>
                           </div>
                         </div>
@@ -1089,15 +1357,147 @@ const ClassFeed = () => {
                   }}
                 />
                 
+                {/* Comments Section */}
+                <AnimatePresence>
+                  {postCommentsVisible[post.id] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="mt-4 pt-4 border-t dark:border-gray-700 overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* New Comment Form */}
+                      <form onSubmit={(e) => handleSubmitComment(post.id, e)} className="mb-4">
+                        <div className="flex items-start gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-sm">
+                            {userInfo?.first_name?.[0] || '?'}
+                          </div>
+                          <div className="flex-1">
+                            <textarea
+                              value={newCommentText[post.id] || ''}
+                              onChange={(e) => setNewCommentText(prev => ({
+                                ...prev,
+                                [post.id]: e.target.value
+                              }))}
+                              placeholder="Add a comment..."
+                              className="w-full p-2 text-sm bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              rows={1}
+                            />
+                            <div className="flex justify-end mt-1">
+                              <button
+                                type="submit"
+                                className="px-3 py-1 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                              >
+                                Post
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </form>
+                      
+                      {/* Comments List */}
+                      {commentLoading[post.id] ? (
+                        <div className="flex justify-center py-4">
+                          <div className="w-6 h-6 border-2 border-t-blue-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : postComments[post.id]?.length > 0 ? (
+                        <div className="space-y-3">
+                          {postComments[post.id].map(comment => (
+                            <CommentThread
+                              key={comment.id}
+                              comment={comment}
+                              classId={classId}
+                              postId={post.id}
+                              token={localStorage.getItem('token')}
+                              onReply={(newComment) => {
+                                // Handle new reply
+                                setCommentCounts(prev => ({
+                                  ...prev, 
+                                  [post.id]: (prev[post.id] || 0) + 1
+                                }));
+                              }}
+                              onLike={() => {/* handle like if needed */}}
+                            />
+                          ))}
+                          
+                          {/* Show more comments link */}
+                          {commentCounts[post.id] > (postComments[post.id]?.length || 0) && (
+                            <div 
+                              onClick={() => navigate(`/class/${classId}/post/${post.id}`)}
+                              className="text-center py-2 text-sm text-blue-500 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+                            >
+                              View all {commentCounts[post.id]} comments
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                          No comments yet. Be the first to comment!
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
                 {/* Post Actions/Stats */}
                 <div className="flex items-center justify-between mt-4 pt-4 border-t dark:border-gray-700">
-                  <div className="flex items-center space-x-4">
-                    <span>👍</span>
-                    <span>0</span>
+                  <div className="flex items-center space-x-6">
+                    {/* Like button with animations */}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLikePost(post.id);
+                      }}
+                      className="flex items-center space-x-1 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors relative"
+                      disabled={likesLoading[post.id]}
+                    >
+                      <div className="relative">
+                        {likedPosts[post.id]?.userLiked ? (
+                          <IoMdHeart className="w-5 h-5 text-red-500" />
+                        ) : (
+                          <IoMdHeartEmpty className="w-5 h-5" />
+                        )}
+                        
+                        {/* Heart animation effect */}
+                        <AnimatePresence>
+                          {likeEffects[post.id] && (
+                            <motion.div
+                              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10"
+                              initial={{ scale: 1, opacity: 0.8 }}
+                              animate={{ scale: 2, opacity: 0 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.8 }}
+                            >
+                              <IoMdHeart className="w-5 h-5 text-red-500" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                      
+                      <span>{likedPosts[post.id]?.count || 0}</span>
+                    </button>
+                    
+                    {/* Comment button (existing or new) */}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleComments(post.id);
+                      }}
+                      className="flex items-center space-x-1 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      {/* Ensure we're checking if commentCounts[post.id] exists */}
+                      <span>Comment{commentCounts[post.id] ? ` (${commentCounts[post.id]})` : ''}</span>
+                    </button>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <span>💬</span>
-                    <span>0</span>
+                  
+                  {/* Post metadata (date/time, etc.) */}
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {new Date(post.created_at).toLocaleDateString()}
                   </div>
                 </div>
               </motion.div>

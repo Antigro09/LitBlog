@@ -28,6 +28,7 @@ from google.oauth2 import id_token
 import secrets
 import random
 from msal import ConfidentialClientApplication  # Add this import
+from sqlalchemy.orm import relationship
 
 app = FastAPI()
 
@@ -183,31 +184,18 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
             detail="Invalid email or password"
         )
     
-    # Check if this is a Google user (add this field to your User model)
-    # You could determine this by checking if they were created via Google sign-up
-    # For example, you could check if their password is the special random one
-    # or add a specific field to track this
-    
-    # This is a simplified check - you may need to adapt this based on your actual model
-    google_user = db.query(models.User).filter(
-        models.User.email == login_data.email, 
-        models.User.google_id.isnot(None)  # Assuming you're storing google_id
-    ).first()
-    
-    if google_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="This account uses Google authentication. Please sign in with Google."
-        )
-    
+    # Check if this is a social login account by trying to verify password
+    # If password verification fails, it might be a social account
     if not verify_password(login_data.password, user.password):
+        # Check if this user signed up with either Google or Microsoft
+        # Since we don't have the ID fields, we need to rely on other signals
+        # One approach is to tell users to use social login if password is invalid
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Invalid email or password"
+            detail="Invalid email or password. If you signed up with Google or Microsoft, please use those login methods."
         )
     
-    # Continue with token generation and other logic...
-    # Create access token with user ID (not email)
+    # Create access token with user ID
     access_token = create_access_token(data={"sub": str(user.id)})
 
     # Get class info for students
@@ -239,15 +227,7 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/google-signup", response_model=schemas.UserResponse)
 async def google_signup(google_data: dict, db: Session = Depends(get_db)):
-    """
-    Process Google OAuth sign-up
-    
-    The request body should contain either:
-    - token: ID token from Google (from GoogleLogin component)
-    - or googleData: User info from Google API (from useGoogleLogin hook)
-    - role: User role (STUDENT, TEACHER, ADMIN)
-    - accessCode: Access code for TEACHER or ADMIN roles
-    """
+    """Process Google OAuth sign-up"""
     try:
         # Check if we got an ID token or user info
         if 'token' in google_data:
@@ -262,108 +242,122 @@ async def google_signup(google_data: dict, db: Session = Depends(get_db)):
             user_email = idinfo['email']
             first_name = idinfo.get('given_name', '')
             last_name = idinfo.get('family_name', '')
-            google_id = idinfo['sub']  # This is the Google ID
-            
+            # No longer storing google_id
+        
         elif 'googleData' in google_data:
-            # Use the user info directly
-            user_data = google_data['googleData']
-            user_email = user_data['email']
-            first_name = user_data.get('firstName', '')
-            last_name = user_data.get('lastName', '')
-            google_id = user_data['googleId']  # This is the Google ID
+            # Extract user info from the provided data
+            user_email = google_data['googleData']['email']
+            first_name = google_data['googleData'].get('given_name', '')
+            last_name = google_data['googleData'].get('family_name', '')
+            # No longer storing google_id
+        
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid Google authentication data"
+                detail="Missing Google authentication data"
             )
         
-        # Get role and access code from the request
-        role = google_data.get('role', 'STUDENT')
-        access_code = google_data.get('accessCode')
-        
-        # Validate role
-        if role not in ["STUDENT", "TEACHER", "ADMIN"]:
+        # Check required fields
+        role = google_data.get('role')
+        if not role:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid role specified"
+                detail="Role is required"
             )
         
-        # Verify access code for teachers and admins
-        if role == "TEACHER" and (not access_code or access_code != os.getenv("TEACHER_ACCESS_CODE")):
+        # Validate access code for teacher/admin
+        access_code = google_data.get('accessCode')
+        if role in ['TEACHER', 'ADMIN'] and not access_code:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{role.lower()} access code is required"
+            )
+        
+        # Verify access codes
+        if role == 'TEACHER' and access_code != os.getenv("TEACHER_ACCESS_CODE"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid teacher access code"
             )
-            
-        if role == "ADMIN" and (not access_code or access_code != os.getenv("ADMIN_ACCESS_CODE")):
+        
+        if role == 'ADMIN' and access_code != os.getenv("ADMIN_ACCESS_CODE"):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid admin access code"
             )
-            
-        # Check if user already exists
-        existing_user = db.query(models.User).filter(models.User.email == user_email).first()
+        
+        # Check if user already exists by email
+        existing_user = db.query(models.User).filter(
+            models.User.email == user_email
+        ).first()
+        
         if existing_user:
-            # User exists, generate token and return user info
+            # User already exists, update their details but don't change role
+            existing_user.first_name = first_name
+            existing_user.last_name = last_name
+            # Don't update google_id anymore
+            
+            db.commit()
+            db.refresh(existing_user)
+            
+            # Generate token for the existing user
             access_token = create_access_token(data={"sub": str(existing_user.id)})
             
+            # Return user data
             return {
                 "id": existing_user.id,
                 "username": existing_user.username,
                 "email": existing_user.email,
                 "first_name": existing_user.first_name,
                 "last_name": existing_user.last_name,
-                "role": existing_user.role.value,
+                "role": existing_user.role,
+                "token": access_token,
                 "is_admin": existing_user.is_admin,
-                "created_at": existing_user.created_at,
-                "token": access_token
+                "created_at": existing_user.created_at
             }
         
-        # Create random username using email prefix and random numbers
+        # Create new user
         username = user_email.split('@')[0] + str(random.randint(1000, 9999))
         
-        # Create a random secure password for Google users
+        # Generate a random password 
         random_password = secrets.token_hex(16)
         hashed_password = get_password_hash(random_password)
         
-        # Create new user - NOW INCLUDING GOOGLE_ID
+        # Create user with the provided role
         new_user = models.User(
             username=username,
             email=user_email,
-            password=hashed_password,  # Store hashed random password
+            password=hashed_password,
             first_name=first_name,
             last_name=last_name,
             role=role,
-            is_admin=(role == "ADMIN"),
-            google_id=google_id  # Store the Google ID!
+            # No longer using google_id
+            # Do NOT include access_code here - it's not in the User model
         )
         
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         
-        # Generate token
+        # Generate token for the new user
         access_token = create_access_token(data={"sub": str(new_user.id)})
         
+        # Return user data
         return {
             "id": new_user.id,
             "username": new_user.username,
             "email": new_user.email,
             "first_name": new_user.first_name,
             "last_name": new_user.last_name,
-            "role": new_user.role.value,
+            "role": new_user.role,
+            "token": access_token,
             "is_admin": new_user.is_admin,
-            "created_at": new_user.created_at,
-            "token": access_token
+            "created_at": new_user.created_at
         }
         
-    except ValueError as e:
-        # Invalid token
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}"
-        )
     except Exception as e:
+        # Log the full error for debugging
+        print(f"Google signup error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process Google sign-up: {str(e)}"
@@ -389,11 +383,8 @@ async def google_login(token_data: dict, db: Session = Depends(get_db)):
         # Extract user info
         email = idinfo['email']
         
-        # Check if user exists
-        user = db.query(models.User).filter(
-            (models.User.email == email) | 
-            (models.User.google_id == idinfo['sub'])
-        ).first()
+        # Check if user exists by email only - don't use google_id
+        user = db.query(models.User).filter(models.User.email == email).first()
         
         # If user doesn't exist, require signup
         if not user:
@@ -402,12 +393,12 @@ async def google_login(token_data: dict, db: Session = Depends(get_db)):
                 detail="User not found. Please sign up and choose a role first."
             )
         
-        # Rest of the login logic...
+        # Generate token
         access_token = create_access_token(data={"sub": str(user.id)})
         
         # Get class info for students
         class_info = None
-        if user.role == 'STUDENT':
+        if user.role == models.UserRole.STUDENT:
             enrollment = db.query(models.ClassEnrollment).filter(
                 models.ClassEnrollment.student_id == user.id
             ).first()
@@ -425,21 +416,18 @@ async def google_login(token_data: dict, db: Session = Depends(get_db)):
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "user_id": user.id,
-            "role": user.role,
+            "role": user.role.value,
+            "id": user.id,
             "username": user.username,
+            "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "is_admin": user.is_admin,
             "class_info": class_info
         }
         
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}"
-        )
     except Exception as e:
+        print(f"Google login error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process Google login: {str(e)}"
@@ -447,18 +435,14 @@ async def google_login(token_data: dict, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/microsoft-login")
 async def microsoft_login(microsoft_data: dict, db: Session = Depends(get_db)):
-    """Process Microsoft login - now with existence check"""
+    """Process Microsoft login"""
     try:
         # Extract user info from the Microsoft data
         user_data = microsoft_data['msUserData']
         user_email = user_data['email']
-        microsoft_id = user_data['microsoftId']
         
-        # Check if user exists
-        user = db.query(models.User).filter(
-            (models.User.email == user_email) | 
-            (models.User.microsoft_id == microsoft_id)
-        ).first()
+        # Check if user exists by email only - don't use microsoft_id
+        user = db.query(models.User).filter(models.User.email == user_email).first()
         
         # If user doesn't exist, require signup
         if not user:
@@ -467,21 +451,41 @@ async def microsoft_login(microsoft_data: dict, db: Session = Depends(get_db)):
                 detail="User not found. Please sign up and choose a role first."
             )
         
-        # Rest of the login logic...
+        # Generate token
         access_token = create_access_token(data={"sub": str(user.id)})
+        
+        # Get class info for students
+        class_info = None
+        if user.role == models.UserRole.STUDENT:
+            enrollment = db.query(models.ClassEnrollment).filter(
+                models.ClassEnrollment.student_id == user.id
+            ).first()
+            if enrollment:
+                class_ = db.query(models.Class).filter(
+                    models.Class.id == enrollment.class_id
+                ).first()
+                if class_:
+                    class_info = {
+                        "id": class_.id,
+                        "name": class_.name,
+                        "access_code": class_.access_code
+                    }
         
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "user_id": user.id,
-            "role": user.role,
+            "role": user.role.value,
+            "id": user.id,
             "username": user.username,
+            "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "is_admin": user.is_admin
+            "is_admin": user.is_admin,
+            "class_info": class_info
         }
         
     except Exception as e:
+        print(f"Microsoft login error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process Microsoft login: {str(e)}"
@@ -595,91 +599,120 @@ async def get_microsoft_token(request_data: dict, db: Session = Depends(get_db))
             detail=f"Failed to process Microsoft signup: {str(e)}"
         )
 
-@app.post("/api/auth/microsoft-signup")
+@app.post("/api/auth/microsoft-signup", response_model=schemas.UserResponse)
 async def microsoft_signup(microsoft_data: dict, db: Session = Depends(get_db)):
-    """Process Microsoft OAuth sign-up"""
+    """Process Microsoft signup"""
     try:
-        # Get role and access code from the request
-        role = microsoft_data.get('role', 'STUDENT')
-        access_code = microsoft_data.get('accessCode')
-        
-        # Validate role
-        if role not in ["STUDENT", "TEACHER", "ADMIN"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid role specified"
-            )
-        
-        # Verify access code for teachers and admins
-        if role == "TEACHER" and (not access_code or access_code != os.getenv("TEACHER_ACCESS_CODE")):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid teacher access code"
-            )
-            
-        if role == "ADMIN" and (not access_code or access_code != os.getenv("ADMIN_ACCESS_CODE")):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid admin access code"
-            )
-
         # Extract user info from the Microsoft data
         user_data = microsoft_data['msUserData']
         user_email = user_data['email']
         first_name = user_data.get('firstName', '')
         last_name = user_data.get('lastName', '')
-        microsoft_id = user_data['microsoftId']
+        # We're no longer storing microsoft_id
         
-        # Check if user exists
-        user = db.query(models.User).filter(
-            (models.User.email == user_email) | 
-            (models.User.microsoft_id == microsoft_id)
-        ).first()
-        
-        if user:
+        # Check required fields
+        role = microsoft_data.get('role')
+        if not role:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already exists. Please sign in instead."
+                detail="Role is required"
             )
+        
+        # Validate access code for teacher/admin
+        access_code = microsoft_data.get('accessCode')
+        if role in ['TEACHER', 'ADMIN'] and not access_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{role.lower()} access code is required"
+            )
+        
+        # Verify access codes
+        if role == 'TEACHER' and access_code != os.getenv("TEACHER_ACCESS_CODE"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid teacher access code"
+            )
+        
+        if role == 'ADMIN' and access_code != os.getenv("ADMIN_ACCESS_CODE"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid admin access code"
+            )
+        
+        # Check if user already exists by email
+        existing_user = db.query(models.User).filter(
+            models.User.email == user_email
+        ).first()
+        
+        if existing_user:
+            # User already exists, update their details but don't change role
+            existing_user.first_name = first_name
+            existing_user.last_name = last_name
+            # Don't update microsoft_id anymore
+            
+            db.commit()
+            db.refresh(existing_user)
+            
+            # Generate token for the existing user
+            access_token = create_access_token(data={"sub": str(existing_user.id)})
+            
+            # Return user data
+            return {
+                "id": existing_user.id,
+                "username": existing_user.username,
+                "email": existing_user.email,
+                "first_name": existing_user.first_name,
+                "last_name": existing_user.last_name,
+                "role": existing_user.role,
+                "token": access_token,
+                "is_admin": existing_user.is_admin,
+                "created_at": existing_user.created_at
+            }
         
         # Create new user
         username = user_email.split('@')[0] + str(random.randint(1000, 9999))
+        
+        # Generate a random password 
         random_password = secrets.token_hex(16)
         hashed_password = get_password_hash(random_password)
         
-        user = models.User(
+        # Create user with the provided role
+        new_user = models.User(
             username=username,
             email=user_email,
             password=hashed_password,
             first_name=first_name,
             last_name=last_name,
-            role=role,
-            is_admin=(role == "ADMIN"),
-            microsoft_id=microsoft_id
+            role=role
+            # Do NOT include microsoft_id or access_code here
         )
         
-        db.add(user)
+        db.add(new_user)
         db.commit()
-        db.refresh(user)
+        db.refresh(new_user)
         
-        # Generate token
-        access_token = create_access_token(data={"sub": str(user.id)})
+        # Generate token for the new user
+        access_token = create_access_token(data={"sub": str(new_user.id)})
         
+        # Return user data
         return {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "role": user.role,
-            "is_admin": user.is_admin,
-            "token": access_token
+            "id": new_user.id,
+            "username": new_user.username,
+            "email": new_user.email,
+            "first_name": new_user.first_name,
+            "last_name": new_user.last_name,
+            "role": new_user.role,
+            "token": access_token,
+            "is_admin": new_user.is_admin,
+            "created_at": new_user.created_at
         }
         
     except Exception as e:
+        # Log the full error for debugging
+        print(f"Microsoft signup error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process Microsoft signup: {str(e)}"
+            detail=f"Failed to process Microsoft sign-up: {str(e)}"
         )
 
 @app.get("/api/user/{user_id}")
@@ -1063,68 +1096,157 @@ async def upload_file(file: UploadFile = File(...), current_user: models.User = 
 
 @app.get("/api/teacher/dashboard")
 async def get_teacher_dashboard(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if not current_user.role == models.UserRole.TEACHER:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    teacher = db.query(models.Teacher).filter(
-        models.Teacher.email == current_user.email
-    ).first()
-    
-    if not teacher:
-        raise HTTPException(status_code=404, detail="Teacher record not found")
-    
-    return {
-        "id": teacher.id,
-        "name": teacher.name,
-        "email": teacher.email,
-        "classes": [
-            {
-                "id": cls.id,
-                "name": cls.name,
-                "description": cls.description,
-                "access_code": cls.access_code,
-                "students": [
-                    {
-                        "id": enrollment.student_id,
-                        "name": f"{enrollment.student.first_name} {enrollment.student.last_name}"
-                    }
-                    for enrollment in cls.students
-                ]
-            }
-            for cls in teacher.classes
-        ]
-    }
-
-@app.post("/api/classes")
-async def create_class(
-    class_data: schemas.ClassCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    if not current_user.role == models.UserRole.TEACHER:
-        raise HTTPException(status_code=403, detail="Only teachers can create classes")
+    """Get teacher dashboard data"""
+    if current_user.role != models.UserRole.TEACHER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Teacher role required."
+        )
     
-    teacher = db.query(models.Teacher).filter(
-        models.Teacher.email == current_user.email
-    ).first()
+    try:
+        # Get teacher's classes
+        classes = db.query(models.Class).filter(
+            models.Class.teacher_id == current_user.id
+        ).all()
+        
+        # Format class data with student counts
+        class_data = []
+        for class_ in classes:
+            # Count students in this class
+            student_count = db.query(models.ClassEnrollment).filter(
+                models.ClassEnrollment.class_id == class_.id
+            ).count()
+            
+            # Count posts in this class
+            post_count = db.query(models.Blog).filter(
+                models.Blog.class_id == class_.id
+            ).count()
+            
+            class_data.append({
+                "id": class_.id,
+                "name": class_.name,
+                "description": class_.description,
+                "access_code": class_.access_code,
+                "created_at": class_.created_at,
+                "student_count": student_count,
+                "post_count": post_count
+            })
+        
+        # Get recent activity (last 10 posts across all classes)
+        recent_posts = db.query(models.Blog).join(
+            models.Class, models.Blog.class_id == models.Class.id
+        ).filter(
+            models.Class.teacher_id == current_user.id
+        ).order_by(
+            models.Blog.created_at.desc()
+        ).limit(10).all()
+        
+        activity = []
+        for post in recent_posts:
+            # Get student info
+            student = db.query(models.User).filter(
+                models.User.id == post.owner_id
+            ).first()
+            
+            # Get class info
+            class_ = db.query(models.Class).filter(
+                models.Class.id == post.class_id
+            ).first()
+            
+            activity.append({
+                "id": post.id,
+                "title": post.title,
+                "created_at": post.created_at,
+                "student_name": f"{student.first_name} {student.last_name}",
+                "student_id": student.id,
+                "class_name": class_.name,
+                "class_id": class_.id
+            })
+        
+        return {
+            "teacher": {
+                "id": current_user.id,
+                "name": f"{current_user.first_name} {current_user.last_name}",
+                "email": current_user.email
+            },
+            "classes": class_data,
+            "recent_activity": activity,
+            "total_students": sum(c["student_count"] for c in class_data),
+            "total_classes": len(class_data),
+            "total_posts": sum(c["post_count"] for c in class_data)
+        }
     
-    if not teacher:
-        raise HTTPException(status_code=404, detail="Teacher record not found")
+    except Exception as e:
+        print(f"Teacher dashboard error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load dashboard: {str(e)}"
+        )
+
+@app.post("/api/classes")
+async def create_class(
+    class_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Create a new class (for teachers)"""
+    if current_user.role != models.UserRole.TEACHER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only teachers can create classes"
+        )
     
-    new_class = models.Class(
-        name=class_data.name,
-        description=class_data.description,
-        teacher_id=teacher.id,
-        access_code=generate_unique_code(db)
-    )
+    try:
+        # Find the teacher record for this user
+        teacher = db.query(models.Teacher).filter(
+            models.Teacher.email == current_user.email
+        ).first()
+        
+        if not teacher:
+            # Create a teacher record if it doesn't exist
+            teacher = models.Teacher(
+                name=f"{current_user.first_name} {current_user.last_name}",
+                email=current_user.email,
+                user_id=current_user.id
+            )
+            db.add(teacher)
+            db.commit()
+            db.refresh(teacher)
+        
+        # Generate a unique access code
+        access_code = generate_unique_code(db)
+        
+        # Create new class with teacher_id from the Teacher table
+        new_class = models.Class(
+            name=class_data.get("name"),
+            description=class_data.get("description", ""),
+            access_code=access_code,
+            teacher_id=teacher.id  # Use teacher.id, not current_user.id
+        )
+        
+        db.add(new_class)
+        db.commit()
+        db.refresh(new_class)
+        
+        return {
+            "id": new_class.id,
+            "name": new_class.name,
+            "description": new_class.description,
+            "access_code": new_class.access_code,
+            "created_at": new_class.created_at,
+            "teacher_id": new_class.teacher_id
+        }
     
-    db.add(new_class)
-    db.commit()
-    db.refresh(new_class)
-    return new_class
+    except Exception as e:
+        db.rollback()
+        print(f"Class creation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create class: {str(e)}"
+        )
 
 @app.get("/api/classes/{class_id}/posts/{post_id}")
 async def get_class_post(
@@ -1458,6 +1580,359 @@ async def get_user_profile(current_user: models.User = Depends(get_current_user)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch profile: {str(e)}")
+
+@app.post("/api/classes/{class_id}/posts/{post_id}/like")
+async def like_post(
+    class_id: int,
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Like or unlike a post"""
+    # Find the post
+    post = db.query(models.Blog).filter(
+        models.Blog.id == post_id,
+        models.Blog.class_id == class_id
+    ).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if the user already liked this post
+    existing_like = db.query(models.PostLike).filter(
+        models.PostLike.post_id == post_id,
+        models.PostLike.user_id == current_user.id
+    ).first()
+    
+    if existing_like:
+        # Unlike - remove the like
+        db.delete(existing_like)
+        action = "unliked"
+    else:
+        # Like - add a new like
+        new_like = models.PostLike(
+            post_id=post_id,
+            user_id=current_user.id
+        )
+        db.add(new_like)
+        action = "liked"
+    
+    db.commit()
+    
+    # Get updated like count
+    like_count = db.query(models.PostLike).filter(
+        models.PostLike.post_id == post_id
+    ).count()
+    
+    return {
+        "action": action,
+        "post_id": post_id,
+        "like_count": like_count
+    }
+
+@app.get("/api/classes/{class_id}/posts/{post_id}/likes")
+async def get_post_likes(
+    class_id: int,
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get likes for a post"""
+    # Find the post
+    post = db.query(models.Blog).filter(
+        models.Blog.id == post_id,
+        models.Blog.class_id == class_id
+    ).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if the current user liked this post
+    user_liked = db.query(models.PostLike).filter(
+        models.PostLike.post_id == post_id,
+        models.PostLike.user_id == current_user.id
+    ).first() is not None
+    
+    # Get all likes
+    likes = db.query(models.PostLike).filter(
+        models.PostLike.post_id == post_id
+    ).all()
+    
+    # Get users who liked
+    like_users = []
+    for like in likes:
+        user = db.query(models.User).filter(models.User.id == like.user_id).first()
+        if user:
+            like_users.append({
+                "id": user.id,
+                "name": f"{user.first_name} {user.last_name}".strip(),
+                "username": user.username
+            })
+    
+    return {
+        "post_id": post_id,
+        "like_count": len(likes),
+        "user_liked": user_liked,
+        "users": like_users
+    }
+
+@app.get("/api/classes/{class_id}/posts/{post_id}/comments")
+async def get_comments(
+    class_id: int,
+    post_id: int,
+    skip: int = 0,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get comments for a post, with pagination support"""
+    # Find the post
+    post = db.query(models.Blog).filter(
+        models.Blog.id == post_id,
+        models.Blog.class_id == class_id
+    ).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Get root comments first (comments without a parent)
+    root_comments = db.query(models.Comment).filter(
+        models.Comment.blog_id == post_id,
+        models.Comment.parent_id == None
+    ).order_by(models.Comment.created_at.desc()).offset(skip).limit(limit).all()
+    
+    # Function to recursively get comment data with user info and likes
+    def get_comment_data(comment, depth=0, max_depth=3):
+        # Get user info
+        user = db.query(models.User).filter(models.User.id == comment.user_id).first()
+        
+        # Get like count and current user's like status
+        like_count = db.query(models.CommentLike).filter(
+            models.CommentLike.comment_id == comment.id
+        ).count()
+        
+        user_liked = db.query(models.CommentLike).filter(
+            models.CommentLike.comment_id == comment.id,
+            models.CommentLike.user_id == current_user.id
+        ).first() is not None
+        
+        # Get replies, but limit depth to avoid excessive nesting
+        replies_data = []
+        if depth < max_depth:
+            replies = db.query(models.Comment).filter(
+                models.Comment.parent_id == comment.id
+            ).order_by(models.Comment.created_at).all()
+            
+            for reply in replies:
+                replies_data.append(get_comment_data(reply, depth + 1, max_depth))
+        
+        # Return formatted comment data
+        return {
+            "id": comment.id,
+            "content": comment.content,
+            "created_at": comment.created_at,
+            "updated_at": comment.updated_at,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "profile_image": user.profile_image
+            },
+            "likes": like_count,
+            "user_liked": user_liked,
+            "replies": replies_data,
+            "has_more_replies": len(comment.replies) > len(replies_data) if depth == max_depth else False,
+            "reply_count": len(comment.replies)
+        }
+    
+    # Get formatted comment data for all root comments
+    comments_data = [get_comment_data(comment) for comment in root_comments]
+    
+    # Get total count for pagination
+    total_root_comments = db.query(models.Comment).filter(
+        models.Comment.blog_id == post_id,
+        models.Comment.parent_id == None
+    ).count()
+    
+    return {
+        "comments": comments_data,
+        "total": total_root_comments,
+        "has_more": total_root_comments > skip + limit
+    }
+
+@app.get("/api/comments/{comment_id}/replies")
+async def get_comment_replies(
+    comment_id: int,
+    skip: int = 0,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get replies for a specific comment"""
+    # Check if comment exists
+    comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    # Get replies with pagination
+    replies = db.query(models.Comment).filter(
+        models.Comment.parent_id == comment_id
+    ).order_by(models.Comment.created_at).offset(skip).limit(limit).all()
+    
+    # Function to format reply data (similar to above but without deep recursion)
+    def format_reply(reply):
+        user = db.query(models.User).filter(models.User.id == reply.user_id).first()
+        
+        like_count = db.query(models.CommentLike).filter(
+            models.CommentLike.comment_id == reply.id
+        ).count()
+        
+        user_liked = db.query(models.CommentLike).filter(
+            models.CommentLike.comment_id == reply.id,
+            models.CommentLike.user_id == current_user.id
+        ).first() is not None
+        
+        # Count number of replies to this reply
+        reply_count = db.query(models.Comment).filter(
+            models.Comment.parent_id == reply.id
+        ).count()
+        
+        return {
+            "id": reply.id,
+            "content": reply.content,
+            "created_at": reply.created_at,
+            "updated_at": reply.updated_at,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "profile_image": user.profile_image
+            },
+            "likes": like_count,
+            "user_liked": user_liked,
+            "reply_count": reply_count,
+            "has_replies": reply_count > 0
+        }
+    
+    replies_data = [format_reply(reply) for reply in replies]
+    
+    # Get total for pagination
+    total_replies = db.query(models.Comment).filter(
+        models.Comment.parent_id == comment_id
+    ).count()
+    
+    return {
+        "replies": replies_data,
+        "total": total_replies,
+        "has_more": total_replies > skip + limit
+    }
+
+@app.post("/api/classes/{class_id}/posts/{post_id}/comments")
+async def create_comment(
+    class_id: int,
+    post_id: int,
+    comment_data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Create a new comment on a post or reply to another comment"""
+    # Find the post
+    post = db.query(models.Blog).filter(
+        models.Blog.id == post_id,
+        models.Blog.class_id == class_id
+    ).first()
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if this is a reply to another comment
+    parent_id = comment_data.get("parent_id")
+    if parent_id:
+        # Verify parent comment exists
+        parent_comment = db.query(models.Comment).filter(
+            models.Comment.id == parent_id,
+            models.Comment.blog_id == post_id
+        ).first()
+        
+        if not parent_comment:
+            raise HTTPException(status_code=404, detail="Parent comment not found")
+    
+    # Create the comment
+    new_comment = models.Comment(
+        content=comment_data.get("content"),
+        user_id=current_user.id,
+        blog_id=post_id,
+        parent_id=parent_id
+    )
+    
+    db.add(new_comment)
+    db.commit()
+    db.refresh(new_comment)
+    
+    # Return the created comment with user info
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    
+    return {
+        "id": new_comment.id,
+        "content": new_comment.content,
+        "created_at": new_comment.created_at,
+        "updated_at": new_comment.updated_at,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "profile_image": user.profile_image
+        },
+        "parent_id": parent_id,
+        "likes": 0,
+        "user_liked": False,
+        "replies": []
+    }
+
+@app.post("/api/comments/{comment_id}/like")
+async def like_comment(
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Like or unlike a comment"""
+    # Find the comment
+    comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    # Check if the user already liked this comment
+    existing_like = db.query(models.CommentLike).filter(
+        models.CommentLike.comment_id == comment_id,
+        models.CommentLike.user_id == current_user.id
+    ).first()
+    
+    if existing_like:
+        # Unlike - remove the like
+        db.delete(existing_like)
+        action = "unliked"
+    else:
+        # Like - add a new like
+        new_like = models.CommentLike(
+            comment_id=comment_id,
+            user_id=current_user.id
+        )
+        db.add(new_like)
+        action = "liked"
+    
+    db.commit()
+    
+    # Get updated like count
+    like_count = db.query(models.CommentLike).filter(
+        models.CommentLike.comment_id == comment_id
+    ).count()
+    
+    return {
+        "action": action,
+        "comment_id": comment_id,
+        "like_count": like_count
+    }
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
