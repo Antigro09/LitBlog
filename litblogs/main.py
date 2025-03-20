@@ -1103,40 +1103,64 @@ async def get_teacher_dashboard(
     if current_user.role != models.UserRole.TEACHER:
         raise HTTPException(status_code=403, detail="Not a teacher")
     
-    # Get teacher info
-    teacher = db.query(models.Teacher).filter(models.Teacher.user_id == current_user.id).first()
-    if not teacher:
-        raise HTTPException(status_code=404, detail="Teacher profile not found")
-    
-    # Get classes taught by this teacher
-    classes = db.query(models.Class).filter(models.Class.teacher_id == teacher.id).all()
-    
-    classes_data = []
-    for class_ in classes:
-        # Count enrollments for this class
-        enrollment_count = db.query(models.ClassEnrollment).filter(
-            models.ClassEnrollment.class_id == class_.id
-        ).count()
+    try:
+        # Get classes taught by this teacher
+        classes = db.query(models.Class).filter(
+            models.Class.teacher_id == current_user.id
+        ).all()
         
-        # Count posts in this class
-        post_count = db.query(models.Blog).filter(
-            models.Blog.class_id == class_.id
-        ).count()
+        classes_data = []
+        for class_ in classes:
+            # Count enrollments for this class
+            enrollment_count = db.query(models.ClassEnrollment).filter(
+                models.ClassEnrollment.class_id == class_.id
+            ).count()
+            
+            # Count posts in this class
+            post_count = db.query(models.Blog).filter(
+                models.Blog.class_id == class_.id
+            ).count()
+            
+            # Get recent activity for this class
+            recent_posts = db.query(models.Blog).filter(
+                models.Blog.class_id == class_.id
+            ).order_by(models.Blog.created_at.desc()).limit(5).all()
+            
+            recent_activity = []
+            for post in recent_posts:
+                student = db.query(models.User).filter(models.User.id == post.owner_id).first()
+                if student:
+                    recent_activity.append({
+                        "id": post.id,
+                        "title": post.title,
+                        "student_name": f"{student.first_name} {student.last_name}",
+                        "created_at": post.created_at
+                    })
+            
+            classes_data.append({
+                "id": class_.id,
+                "name": class_.name,
+                "description": class_.description,
+                "access_code": class_.access_code,
+                "enrollment_count": enrollment_count,
+                "post_count": post_count,
+                "recent_activity": recent_activity
+            })
         
-        classes_data.append({
-            "id": class_.id,
-            "name": class_.name,
-            "description": class_.description,
-            "access_code": class_.access_code,
-            "enrollment_count": enrollment_count,
-            "post_count": post_count
-        })
-    
-    return {
-        "name": f"{current_user.first_name} {current_user.last_name}",
-        "email": current_user.email,
-        "classes": classes_data
-    }
+        return {
+            "name": f"{current_user.first_name} {current_user.last_name}",
+            "email": current_user.email,
+            "classes": classes_data,
+            "total_students": sum(c["enrollment_count"] for c in classes_data),
+            "total_posts": sum(c["post_count"] for c in classes_data)
+        }
+        
+    except Exception as e:
+        print(f"Teacher dashboard error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load dashboard: {str(e)}"
+        )
 
 @app.post("/api/classes")
 async def create_class(
@@ -1307,9 +1331,9 @@ async def delete_class_post(
     return {"message": "Post deleted successfully"}
 
 # Add this before your app starts
-#@app.on_event("startup")
-#async def startup_event():
-    #reset_database()
+@app.on_event("startup")
+async def startup_event():
+    reset_database()
 
 def generate_unique_code(db: Session, length: int = 6) -> str:
     while True:
