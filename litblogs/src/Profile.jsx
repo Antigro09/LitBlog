@@ -667,7 +667,7 @@ const StudentProfile = () => {
           } text-white px-6 py-3 rounded-lg shadow-lg flex items-center`}
         >
           {error}
-          <button
+          <button 
             className="ml-3 text-white hover:bg-opacity-20 bg-white bg-opacity-10 rounded-full p-1"
             onClick={() => setError(null)}
           >
@@ -728,7 +728,7 @@ const StudentProfile = () => {
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
                     <polyline points="21 15 16 10 5 21"></polyline>
-                  </svg>
+                    </svg>
                 </button>
                 <label
                   htmlFor="coverImageUpload"
@@ -755,7 +755,7 @@ const StudentProfile = () => {
                     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
                     <circle cx="12" cy="13" r="3"></circle>
                   </svg>
-                </label>
+              </label>
               </div>
             )}
 
@@ -773,8 +773,8 @@ const StudentProfile = () => {
                         src={bgUrl || "/placeholder.svg"}
                         alt={`Background ${index + 1}`}
                         className="w-full h-full object-cover"
-                      />
-                    </div>
+              />
+            </div>
                   ))}
                 </div>
               </div>
@@ -787,8 +787,8 @@ const StudentProfile = () => {
                 <div className="w-full mt-1 bg-gray-300 rounded-full h-1.5">
                   <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${uploadProgress}%` }}></div>
                 </div>
-              </div>
-            )}
+                </div>
+              )}
           </div>
 
           {/* Profile Info Section */}
@@ -835,8 +835,8 @@ const StudentProfile = () => {
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                         <circle cx="8.5" cy="8.5" r="1.5"></circle>
                         <polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                    </button>
+                  </svg>
+                </button>
                     <label
                       className={`cursor-pointer w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? "bg-gray-700" : "bg-white"} border ${darkMode ? "border-gray-600" : "border-gray-200"} shadow-md transition-all duration-200 transform hover:scale-110`}
                     >
@@ -896,9 +896,9 @@ const StudentProfile = () => {
                             onClick={() => selectAvatarColor(color)}
                           ></div>
                         ))}
-                      </div>
-                    </div>
-                  </div>
+              </div>
+            </div>
+          </div>
                 )}
 
                 {uploadProgress > 0 && uploadProgress < 100 && (
@@ -906,8 +906,8 @@ const StudentProfile = () => {
                     <div className="text-white text-sm font-bold">{uploadProgress}%</div>
                   </div>
                 )}
-              </div>
-
+        </div>
+        
               {/* User Info - now centered */}
               <div className="text-center">
                 {isEditing ? (
@@ -931,8 +931,8 @@ const StudentProfile = () => {
                         } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         placeholder="Last Name"
                       />
-                    </div>
-                  </div>
+            </div>
+            </div>
                 ) : (
                   <h2 className={`text-2xl font-bold ${darkMode ? "text-white" : "text-gray-800"}`}>{name}</h2>
                 )}
@@ -959,11 +959,11 @@ const StudentProfile = () => {
                   >
                     {userInfo?.role || "STUDENT"}
                   </span>
-                </div>
-              </div>
             </div>
-
-            {/* Bio Section */}
+          </div>
+        </div>
+        
+        {/* Bio Section */}
             <div className="mb-8">
               <h3 className={`text-lg font-semibold mb-2 ${darkMode ? "text-white" : "text-gray-800"} text-center`}>
                 About Me
@@ -1122,10 +1122,10 @@ const StudentProfile = () => {
               onClick={() => setActiveTab("saved")}
             >
               Saved
-            </button>
+              </button>
           </div>
         </div>
-
+        
         {/* Recent Posts Section */}
         {activeTab === "posts" && (
           <motion.div
@@ -1287,7 +1287,7 @@ const StudentProfile = () => {
       {/* Floating Action Button */}
       <motion.div className="fixed bottom-8 right-8" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
         <Link to="/student-hub">
-          <button
+          <button 
             className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center ${
               darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"
             } text-white transition-all duration-200 transform hover:-translate-y-1`}

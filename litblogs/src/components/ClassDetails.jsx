@@ -228,18 +228,22 @@ const ClassDetails = ({ classData, darkMode, onBack }) => {
                     >
                       <div className="p-6">
                         {/* Author Info */}
-                        <div className="flex items-center space-x-3 mb-4">
-                          <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            {post.author_first_name?.[0] || post.author?.[0] || '?'}
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                              {post.author_name?.[0] || '?'}
+                            </div>
+                            <div className="ml-2">
+                              <h3 className="text-sm font-medium dark:text-white">
+                                {post.author_name || 'Unknown'}
+                              </h3>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-medium dark:text-white">
-                              {post.author || `${post.author_first_name || ''} ${post.author_last_name || ''}`}
-                            </h3>
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                              {new Date(post.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
+                          
+                          {/* Move the timestamp here */}
+                          <span className="text-xs text-gray-500 dark:text-gray-400" data-timestamp={post.created_at}>
+                            {formatRelativeTime(post.created_at)}
+                          </span>
                         </div>
 
                         {/* Post Title and Preview */}

@@ -7,7 +7,7 @@ import ClassDetails from './components/ClassDetails';
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
-  const [darkMode] = useState(() => {
+  const [darkMode, setDarkMode] = useState(() => {
     return JSON.parse(localStorage.getItem('darkMode')) ?? false;
   });
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -20,6 +20,24 @@ const TeacherDashboard = () => {
   const [userInfo, setUserInfo] = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
   const [allStudents, setAllStudents] = useState([]);
+
+  // Add the toggleDarkMode function
+  const toggleDarkMode = () => {
+    setDarkMode((prevDarkMode) => {
+      const newDarkMode = !prevDarkMode;
+      localStorage.setItem('darkMode', JSON.stringify(newDarkMode));
+      return newDarkMode;
+    });
+  };
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   // Combine the useEffects
   useEffect(() => {
@@ -452,6 +470,18 @@ const TeacherDashboard = () => {
           </motion.div>
         </motion.div>
       </div>
+      {/* Toggle Dark Mode Button */}
+      <motion.div
+        className="absolute top-5 right-4 z-10 transition-transform transform hover:scale-110"
+        whileHover={{ scale: 1.1 }}
+      >
+        <button
+          onClick={toggleDarkMode}
+          className="bg-gray-800 text-white p-2 rounded-full shadow-lg"
+        >
+          {darkMode ? "🌞" : "🌙"}
+        </button>
+      </motion.div>
 
       {/* Class Creation Modal */}
       <AnimatePresence>

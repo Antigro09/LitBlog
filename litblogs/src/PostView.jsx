@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -17,11 +17,141 @@ import './LitBlogs.css';
 import { IoMdHeart, IoMdHeartEmpty } from 'react-icons/io';
 import toast from 'react-hot-toast';
 import CommentThread from './components/CommentThread';
+import { formatRelativeTime, setupTimeUpdater } from './utils/timeUtils';
+
+// Function to determine file type from URL
+const getFileTypeFromUrl = (url) => {
+  if (!url) return 'unknown';
+  
+  const extension = url.split('.').pop().toLowerCase();
+  
+  // Image types
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension)) {
+    return 'image';
+  }
+  
+  // Video types
+  if (['mp4', 'webm', 'ogg', 'mov'].includes(extension)) {
+    return 'video';
+  }
+  
+  // Document types
+  if (extension === 'pdf') {
+    return 'pdf';
+  }
+  
+  if (['doc', 'docx'].includes(extension)) {
+    return 'word';
+  }
+  
+  if (['xls', 'xlsx'].includes(extension)) {
+    return 'excel';
+  }
+  
+  if (['ppt', 'pptx'].includes(extension)) {
+    return 'powerpoint';
+  }
+  
+  // Text types
+  if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js'].includes(extension)) {
+    return 'text';
+  }
+  
+  // Default
+  return 'file';
+};
+
+// Function to check if a file type is previewable
+const isPreviewable = (fileType) => {
+  return ['image', 'video', 'pdf', 'text'].includes(fileType);
+};
+
+// Function to get file icon based on type
+const getFileIcon = (fileType) => {
+  switch (fileType) {
+    case 'image':
+      return '🖼️';
+    case 'video':
+      return '🎬';
+    case 'pdf':
+      return '📄';
+    case 'word':
+      return '📝';
+    case 'excel':
+      return '📊';
+    case 'powerpoint':
+      return '📑';
+    case 'text':
+      return '📃';
+    default:
+      return '📁';
+  }
+};
+
+// Add this helper function to decode HTML entities
+const decodeHTMLEntities = (html) => {
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = html;
+  return textarea.value;
+};
 
 const processHTMLWithDOM = (html) => {
+  if (!html) return '';
+  
+  // Check if the HTML contains video tags as text
+  if (html.includes('<video') && html.includes('</video>')) {
+    // Create a temporary div to parse the HTML
+    const tempContainer = document.createElement('div');
+    tempContainer.innerHTML = html;
+    
+    // Find all text nodes that might contain video tags
+    const findTextNodesWithVideos = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (node.textContent.includes('<video') && node.textContent.includes('</video>')) {
+          // Replace the text node with actual HTML
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = node.textContent;
+          
+          // Replace the text node with the parsed HTML
+          node.parentNode.replaceChild(tempDiv, node);
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        // Recursively process child nodes
+        Array.from(node.childNodes).forEach(findTextNodesWithVideos);
+      }
+    };
+    
+    // Process all nodes
+    findTextNodesWithVideos(tempContainer);
+    
+    // Continue with the rest of the processing
+    // ...
+    
+    return tempContainer.innerHTML;
+  }
+  
   // Create a temporary div to parse the HTML
   const tempContainer = document.createElement('div');
   tempContainer.innerHTML = html;
+  
+  // Process videos directly
+  const videos = tempContainer.querySelectorAll('video');
+  videos.forEach(video => {
+    // Add styling directly to the video element
+    video.style.maxWidth = '100%';
+    video.style.borderRadius = '4px';
+    video.style.margin = '10px 0';
+    video.style.display = 'block';
+    
+    // Fix video sources
+    const source = video.querySelector('source');
+    if (source) {
+      const src = source.getAttribute('src');
+      if (src && src.startsWith('/uploads/')) {
+        source.setAttribute('src', `http://localhost:8000${src}`);
+      }
+    }
+  });
   
   // First, preserve headings by marking them
   const headings = tempContainer.querySelectorAll('h1, h2, h3, h4, h5, h6');
@@ -89,6 +219,281 @@ const processHTMLWithDOM = (html) => {
     }
   });
   
+  // Process images - ensure they display properly and fix URLs
+  const images = tempContainer.querySelectorAll('img');
+  images.forEach(img => {
+    // Fix relative URLs by ensuring they start with the correct base URL
+    const src = img.getAttribute('src');
+    if (src && src.startsWith('/uploads/')) {
+      // Make sure the URL is absolute by adding the base URL
+      img.src = `http://localhost:8000${src}`;
+    }
+    
+    // IMPORTANT: Do NOT override existing styles or attributes
+    // Only add responsive behavior if no width/height is specified
+    if (!img.style.width && !img.style.height && !img.hasAttribute('width') && !img.hasAttribute('height')) {
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
+    }
+    
+    // Preserve alignment classes
+    if (img.classList.contains('float-left')) {
+      img.style.float = 'left';
+      img.style.marginRight = '1rem';
+      img.style.marginBottom = '0.5rem';
+    } else if (img.classList.contains('float-right')) {
+      img.style.float = 'right';
+      img.style.marginLeft = '1rem';
+      img.style.marginBottom = '0.5rem';
+    } else if (img.classList.contains('mx-auto') || img.classList.contains('d-block')) {
+      img.style.display = 'block';
+      img.style.marginLeft = 'auto';
+      img.style.marginRight = 'auto';
+    }
+    
+    // Add a base class for all images
+    img.classList.add('post-image');
+    
+    // Add error handling for images
+    img.onerror = "this.onerror=null; this.src='/placeholder-image.png'; this.alt='Image failed to load';";
+  });
+  
+  // Process file attachments
+  const fileAttachments = tempContainer.querySelectorAll('.file-attachment');
+  fileAttachments.forEach(attachment => {
+    // Check if the file-actions div contains encoded HTML
+    const actionsDiv = attachment.querySelector('.file-actions');
+    if (actionsDiv && actionsDiv.innerHTML.includes('&lt;button')) {
+      // The HTML is encoded, decode it
+      actionsDiv.innerHTML = decodeHTMLEntities(actionsDiv.innerHTML);
+    }
+    
+    // Now extract the file URL from the button if it exists
+    const removeBtn = attachment.querySelector('.remove-btn');
+    let fileUrl = null;
+    
+    if (removeBtn) {
+      fileUrl = removeBtn.getAttribute('data-file-url');
+      console.log("Found URL in remove button:", fileUrl);
+    }
+    
+    // Get the filename from the file-name div
+    const fileNameDiv = attachment.querySelector('.file-name');
+    let fileName = fileNameDiv ? fileNameDiv.textContent.trim() : 'download';
+    
+    // Clear the actions div and add the view buttons
+    if (actionsDiv) {
+      actionsDiv.innerHTML = '';
+      
+      // Add preview button for supported file types
+      // if (fileUrl && isPreviewable(getFileTypeFromUrl(fileUrl))) {
+      //   const previewBtn = document.createElement('button');
+      //   previewBtn.className = 'preview-btn';
+      //   previewBtn.textContent = 'Preview';
+      //   previewBtn.setAttribute('type', 'button');
+      //   previewBtn.style.padding = '4px 8px';
+      //   previewBtn.style.borderRadius = '4px';
+      //   previewBtn.style.fontSize = '12px';
+      //   previewBtn.style.cursor = 'pointer';
+      //   previewBtn.style.backgroundColor = '#e0f2fe';
+      //   previewBtn.style.color = '#0369a1';
+      //   previewBtn.style.border = '1px solid #bae6fd';
+      //   previewBtn.style.marginRight = '4px';
+        
+      //   // Simplified preview function
+      //   previewBtn.addEventListener('click', function() {
+      //     const fileType = getFileTypeFromUrl(fileUrl);
+      //     const fullUrl = fileUrl.startsWith('http') ? fileUrl : `http://localhost:8000${fileUrl}`;
+          
+      //     // Create modal for preview
+      //     const modal = document.createElement('div');
+      //     modal.style.position = 'fixed';
+      //     modal.style.top = '0';
+      //     modal.style.left = '0';
+      //     modal.style.width = '100%';
+      //     modal.style.height = '100%';
+      //     modal.style.backgroundColor = 'rgba(0,0,0,0.8)';
+      //     modal.style.zIndex = '9999';
+      //     modal.style.display = 'flex';
+      //     modal.style.alignItems = 'center';
+      //     modal.style.justifyContent = 'center';
+          
+      //     // Create close button
+      //     const closeBtn = document.createElement('button');
+      //     closeBtn.innerHTML = '&times;';
+      //     closeBtn.style.position = 'absolute';
+      //     closeBtn.style.top = '20px';
+      //     closeBtn.style.right = '20px';
+      //     closeBtn.style.fontSize = '30px';
+      //     closeBtn.style.color = 'white';
+      //     closeBtn.style.background = 'none';
+      //     closeBtn.style.border = 'none';
+      //     closeBtn.style.cursor = 'pointer';
+      //     closeBtn.onclick = function() {
+      //       document.body.removeChild(modal);
+      //     };
+          
+      //     // Create content container
+      //     const content = document.createElement('div');
+      //     content.style.maxWidth = '90%';
+      //     content.style.maxHeight = '90%';
+      //     content.style.overflow = 'auto';
+      //     content.style.backgroundColor = 'white';
+      //     content.style.borderRadius = '8px';
+      //     content.style.padding = '20px';
+          
+      //     // Add content based on file type
+      //     if (fileType === 'image') {
+      //       const img = document.createElement('img');
+      //       img.src = fullUrl;
+      //       img.style.maxWidth = '100%';
+      //       content.appendChild(img);
+      //     } else if (fileType === 'video') {
+      //       const video = document.createElement('video');
+      //       video.src = fullUrl;
+      //       video.controls = true;
+      //       video.style.maxWidth = '100%';
+      //       content.appendChild(video);
+      //     } else if (fileType === 'pdf') {
+      //       const iframe = document.createElement('iframe');
+      //       iframe.src = fullUrl;
+      //       iframe.style.width = '800px';
+      //       iframe.style.height = '600px';
+      //       content.appendChild(iframe);
+      //     } else if (fileType === 'text') {
+      //       // For text files, fetch and display content
+      //       fetch(fullUrl)
+      //         .then(response => response.text())
+      //         .then(text => {
+      //           const pre = document.createElement('pre');
+      //           pre.style.whiteSpace = 'pre-wrap';
+      //           pre.style.fontFamily = 'monospace';
+      //           pre.textContent = text;
+      //           content.appendChild(pre);
+      //         });
+      //     } else {
+      //       // For unsupported preview types
+      //       const message = document.createElement('p');
+      //       message.textContent = 'Preview not available for this file type. Please download the file to view it.';
+      //       content.appendChild(message);
+      //     }
+          
+      //     modal.appendChild(closeBtn);
+      //     modal.appendChild(content);
+      //     document.body.appendChild(modal);
+      //   });
+        
+      //   actionsDiv.appendChild(previewBtn);
+      // }
+      
+      // Add download button - make it a direct link with token
+      if (fileUrl) {
+        const downloadBtn = document.createElement('a');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.textContent = 'Preview';
+        downloadBtn.style.padding = '4px 8px';
+        downloadBtn.style.borderRadius = '4px';
+        downloadBtn.style.fontSize = '12px';
+        downloadBtn.style.cursor = 'pointer';
+        downloadBtn.style.backgroundColor = '#e0f2fe';
+        downloadBtn.style.color = '#0369a1';
+        downloadBtn.style.border = '1px solid #bae6fd';
+        downloadBtn.style.marginLeft = '4px';
+        downloadBtn.style.textDecoration = 'none';
+        downloadBtn.style.display = 'inline-block';
+        
+        // Set the href to directly download the file
+        const fullUrl = fileUrl.startsWith('http') ? fileUrl : `http://localhost:8000${fileUrl}`;
+        downloadBtn.href = fullUrl;
+        downloadBtn.download = fileName; // This tells the browser to download instead of navigate
+        downloadBtn.target = '_blank'; // Open in new tab as fallback
+        
+        actionsDiv.appendChild(downloadBtn);
+      }
+    }
+  });
+  
+  // Process video elements
+  const videoWrappers = tempContainer.querySelectorAll('.video-wrapper');
+  videoWrappers.forEach(wrapper => {
+    // Remove the delete overlay when viewing
+    const deleteOverlay = wrapper.querySelector('.video-delete-overlay');
+    if (deleteOverlay) {
+      deleteOverlay.remove();
+    }
+    
+    // Fix video URLs if needed
+    const video = wrapper.querySelector('video');
+    if (video) {
+      const source = video.querySelector('source');
+      if (source) {
+        // First try to get URL from source src attribute
+        let videoUrl = source.getAttribute('src');
+        
+        // If undefined or empty, try to get from the hidden data div
+        if (!videoUrl || videoUrl === 'undefined') {
+          const videoData = wrapper.querySelector('.video-data');
+          if (videoData) {
+            videoUrl = videoData.getAttribute('data-video-url');
+            const videoType = videoData.getAttribute('data-video-type');
+            
+            if (videoUrl) {
+              // Update the source with the correct URL and type
+              source.setAttribute('src', videoUrl);
+              if (videoType) {
+                source.setAttribute('type', videoType);
+              }
+            }
+          }
+        }
+        
+        // Make sure the URL is absolute
+        if (videoUrl && videoUrl.startsWith('/uploads/')) {
+          videoUrl = `http://localhost:8000${videoUrl}`;
+          source.setAttribute('src', videoUrl);
+        }
+        
+        // Reload the video to apply changes
+        video.load();
+      }
+    }
+  });
+  
+  // Also handle direct video tags (not in wrappers)
+  const videosDirect = tempContainer.querySelectorAll('video:not(.video-wrapper video)');
+  videosDirect.forEach(video => {
+    // Fix video URLs if needed
+    const source = video.querySelector('source');
+    if (source) {
+      const src = source.getAttribute('src');
+      if (src) {
+        // Make sure the URL is absolute
+        if (src.startsWith('/uploads/')) {
+          source.setAttribute('src', `http://localhost:8000${src}`);
+        }
+        
+        // Ensure the video has proper styling
+        video.style.maxWidth = '100%';
+        video.style.borderRadius = '4px';
+        video.style.margin = '10px 0';
+        
+        // Reload the video to apply changes
+        video.load();
+      }
+    }
+  });
+  
+  // Add this debugging code to the processHTMLWithDOM function
+  console.log("Original HTML:", html);
+  console.log("Processed HTML:", tempContainer.innerHTML);
+
+  // Also add specific debugging for videos
+  const allVideos = tempContainer.querySelectorAll('video');
+  console.log("Found videos:", allVideos.length);
+  allVideos.forEach((video, index) => {
+    console.log(`Video ${index} HTML:`, video.outerHTML);
+  });
+  
   return tempContainer.innerHTML;
 };
 
@@ -111,6 +516,7 @@ const PostView = () => {
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const contentRef = useRef(null);
 
   const toggleDarkMode = () => {
     setDarkMode((prevDarkMode) => {
@@ -147,14 +553,43 @@ const PostView = () => {
 
     const fetchPost = async () => {
       try {
+        setLoading(true);
         const token = localStorage.getItem('token');
+        
+        // Fetch the post
         const response = await axios.get(`http://localhost:8000/api/classes/${classId}/posts/${postId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setPost(response.data);
-        setLoading(false);
+        
+        // Get user info from localStorage
+        const userInfoStr = localStorage.getItem('userInfo');
+        if (userInfoStr) {
+          const parsedUserInfo = JSON.parse(userInfoStr);
+          setUserInfo(parsedUserInfo);
+        }
+        
+        // Process the post data
+        const postData = response.data;
+        
+        // Set the post data
+        setPost(postData);
+        
+        // Set like status
+        setLiked(postData.user_liked || false);
+        setLikeCount(postData.likes || 0);
+        
+        // Load comments
+        fetchComments();
+        
+        // Apply syntax highlighting after content is loaded
+        setTimeout(() => {
+          Prism.highlightAll();
+        }, 100);
+        
       } catch (error) {
-        setError(error.response?.data?.detail || 'Failed to load post');
+        console.error('Error fetching post:', error);
+        setError('Failed to load post. Please try again later.');
+      } finally {
         setLoading(false);
       }
     };
@@ -357,7 +792,7 @@ const PostView = () => {
     }
   };
 
-  // Add this CSS to your richTextStyles
+  // Add these styles to your richTextStyles in PostView.jsx
   const richTextStyles = `
     .prose {
       max-width: none;
@@ -405,7 +840,459 @@ const PostView = () => {
     .prose i, .prose em {
       font-style: italic !important;
     }
+    
+    /* Image styles */
+    .post-image {
+      max-width: 100%;
+      height: auto;
+      margin-bottom: 1rem;
+      border-radius: 0.375rem;
+    }
+    
+    /* File attachment styles */
+    .file-attachment {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+    }
+    
+    .dark .file-attachment {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .file-attachment .file-icon {
+      margin-right: 12px;
+      font-size: 24px;
+      color: #4a5568;
+    }
+    
+    .file-attachment .file-info {
+      flex-grow: 1;
+    }
+    
+    .file-attachment .file-name {
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    
+    .file-attachment .file-size {
+      font-size: 12px;
+      color: #718096;
+    }
+    
+    .file-attachment .file-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .file-attachment .file-actions button {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    
+    .file-attachment .preview-btn {
+      background-color: #ebf8ff;
+      color: #3182ce;
+      border: 1px solid #bee3f8;
+    }
+    
+    .file-attachment .download-btn {
+      background-color: #e6fffa;
+      color: #319795;
+      border: 1px solid #b2f5ea;
+    }
+    
+    .dark .file-attachment .preview-btn {
+      background-color: rgba(49, 130, 206, 0.2);
+      border-color: rgba(190, 227, 248, 0.3);
+    }
+    
+    .dark .file-attachment .download-btn {
+      background-color: rgba(49, 151, 149, 0.2);
+      border-color: rgba(178, 245, 234, 0.3);
+    }
+
+    /* Image alignment classes */
+    img.float-left {
+      float: left;
+      margin-right: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    img.float-right {
+      float: right;
+      margin-left: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    img.mx-auto.d-block {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    /* Clear floats after images */
+    .html-content::after {
+      content: "";
+      clear: both;
+      display: table;
+    }
+    
+    /* Preserve width/height attributes */
+    img[width], img[height] {
+      width: auto;
+      height: auto;
+      max-width: 100%;
+    }
+    
+    /* Preserve inline styles */
+    img[style] {
+      /* This ensures inline styles take precedence */
+    }
+
+    /* Video styles */
+    .html-content video {
+      max-width: 600px !important;
+      width: 100% !important;
+      border-radius: 8px !important;
+      margin: 20px 0 !important;
+      display: block !important;
+      background-color: #000 !important;
+    }
+    
+    .html-content .video-container {
+      margin: 20px 0 !important;
+      position: relative !important;
+    }
+    
+    /* Force controls to be visible */
+    .html-content video::-webkit-media-controls {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    
+    .html-content video::-webkit-media-controls-enclosure {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
   `;
+
+  useEffect(() => {
+    // Add global function for file preview if it doesn't exist
+    if (!window.previewFile) {
+      window.previewFile = function(url, type) {
+        // Create modal for preview
+        const modal = document.createElement('div');
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.8)';
+        modal.style.zIndex = '9999';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        
+        // Create close button
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '20px';
+        closeBtn.style.right = '20px';
+        closeBtn.style.fontSize = '30px';
+        closeBtn.style.color = 'white';
+        closeBtn.style.background = 'none';
+        closeBtn.style.border = 'none';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.onclick = function() {
+          document.body.removeChild(modal);
+        };
+        
+        // Create content container
+        const content = document.createElement('div');
+        content.style.maxWidth = '90%';
+        content.style.maxHeight = '90%';
+        content.style.overflow = 'auto';
+        content.style.backgroundColor = 'white';
+        content.style.borderRadius = '8px';
+        content.style.padding = '20px';
+        
+        // Add content based on file type
+        if (type === 'image') {
+          const img = document.createElement('img');
+          img.src = url;
+          img.style.maxWidth = '100%';
+          content.appendChild(img);
+        } else if (type === 'video') {
+          const video = document.createElement('video');
+          video.src = url;
+          video.controls = true;
+          video.style.maxWidth = '100%';
+          content.appendChild(video);
+        } else if (type === 'pdf') {
+          const iframe = document.createElement('iframe');
+          iframe.src = url;
+          iframe.style.width = '800px';
+          iframe.style.height = '600px';
+          content.appendChild(iframe);
+        } else if (type === 'text') {
+          // For text files, fetch and display content
+          fetch(url)
+            .then(response => response.text())
+            .then(text => {
+              const pre = document.createElement('pre');
+              pre.style.whiteSpace = 'pre-wrap';
+              pre.style.fontFamily = 'monospace';
+              pre.textContent = text;
+              content.appendChild(pre);
+            });
+        } else {
+          // For unsupported preview types
+          const message = document.createElement('p');
+          message.textContent = 'Preview not available for this file type. Please download the file to view it.';
+          content.appendChild(message);
+        }
+        
+        modal.appendChild(closeBtn);
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+      };
+    }
+    
+    // Set up the time updater when the component mounts
+    const timeUpdateInterval = setupTimeUpdater();
+    
+    // Clean up the interval when the component unmounts
+    return () => clearInterval(timeUpdateInterval);
+  }, []);
+
+  useEffect(() => {
+    if (contentRef.current && post && post.content) {
+      // Process videos after the content is rendered
+      const videoElements = contentRef.current.querySelectorAll('video');
+      console.log("Found video elements after render:", videoElements.length);
+      
+      videoElements.forEach(video => {
+        // Ensure the video has proper styling
+        video.style.maxWidth = '100%';
+        video.style.borderRadius = '4px';
+        video.style.margin = '10px 0';
+        video.style.display = 'block';
+        
+        // Fix video sources
+        const source = video.querySelector('source');
+        if (source) {
+          const src = source.getAttribute('src');
+          if (src && src.startsWith('/uploads/')) {
+            source.setAttribute('src', `http://localhost:8000${src}`);
+            // Force the video to reload with the new source
+            video.load();
+          }
+        }
+      });
+    }
+  }, [post?.content]);
+
+  // Add this function to directly create and insert video elements
+
+  const forceRenderVideos = () => {
+    // Get the content container
+    const contentDiv = document.querySelector('.html-content');
+    if (!contentDiv) return;
+    
+    console.log("Forcing video rendering...");
+    
+    // Look for any text that contains video tags (encoded or not)
+    const htmlContent = contentDiv.innerHTML;
+    
+    // First, try to find any encoded video tags
+    if (htmlContent.includes('&lt;video') || htmlContent.includes('<video')) {
+      console.log("Found video tags in content");
+      
+      // Create a temporary container to parse the content
+      const tempDiv = document.createElement('div');
+      
+      // First decode any HTML entities
+      let decodedHtml = htmlContent
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&');
+      
+      tempDiv.innerHTML = decodedHtml;
+      
+      // Find all video source URLs in the content
+      const videoSources = [];
+      
+      // Method 1: Extract from source tags
+      const sourceRegex = /<source\s+src="([^"]+)"\s+type="([^"]+)"/g;
+      let match;
+      while ((match = sourceRegex.exec(decodedHtml)) !== null) {
+        videoSources.push({
+          src: match[1],
+          type: match[2]
+        });
+      }
+      
+      console.log("Found video sources:", videoSources);
+      
+      // If we found video sources, create new video elements
+      if (videoSources.length > 0) {
+        // Clear the content div
+        contentDiv.innerHTML = '';
+        
+        // Create new video elements for each source
+        videoSources.forEach((source, index) => {
+          // Create container
+          const videoContainer = document.createElement('div');
+          videoContainer.className = 'video-container';
+          videoContainer.style.margin = '20px 0';
+          
+          // Create video element
+          const video = document.createElement('video');
+          video.controls = true;
+          video.width = '100%';
+          video.style.maxWidth = '600px';
+          video.style.display = 'block';
+          video.style.borderRadius = '8px';
+          video.style.backgroundColor = '#000';
+          
+          // Create source element
+          const sourceEl = document.createElement('source');
+          
+          // Fix the source URL if needed
+          let srcUrl = source.src;
+          if (srcUrl.startsWith('/uploads/')) {
+            srcUrl = `http://localhost:8000${srcUrl}`;
+          }
+          
+          sourceEl.src = srcUrl;
+          sourceEl.type = source.type;
+          
+          // Add source to video
+          video.appendChild(sourceEl);
+          
+          // Add fallback text
+          video.appendChild(document.createTextNode('Your browser does not support the video tag.'));
+          
+          // Add video to container
+          videoContainer.appendChild(video);
+          
+          // Add container to content
+          contentDiv.appendChild(videoContainer);
+          
+          console.log(`Created new video element ${index} with source:`, srcUrl);
+          
+          // Force the video to load
+          video.load();
+        });
+        
+        return true; // Videos were rendered
+      }
+    }
+    
+    return false; // No videos were rendered
+  };
+
+  // Call this function after the content is rendered
+  useEffect(() => {
+    if (post?.content) {
+      // Wait for the DOM to update
+      setTimeout(() => {
+        const videosRendered = forceRenderVideos();
+        
+        if (!videosRendered) {
+          // If no videos were rendered by our function, try the other methods
+          fixVideoHtmlEntities();
+        }
+      }, 300);
+    }
+  }, [post?.content]);
+
+  // Update the fixVideoHtmlEntities function to properly handle video controls
+  const fixVideoHtmlEntities = () => {
+    // Find all elements that might contain encoded video tags
+    const contentDiv = document.querySelector('.html-content');
+    if (!contentDiv) return;
+    
+    // Look for text that contains encoded video tags
+    const htmlContent = contentDiv.innerHTML;
+    
+    // Check if there are encoded video tags
+    if (htmlContent.includes('&lt;video') && htmlContent.includes('&lt;/video&gt;')) {
+      console.log("Found encoded video tags, fixing...");
+      
+      // Replace the encoded HTML with decoded HTML
+      const decodedHtml = htmlContent
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&');
+      
+      // Update the content
+      contentDiv.innerHTML = decodedHtml;
+      
+      // Now find and fix all videos
+      const videos = contentDiv.querySelectorAll('video');
+      console.log("Found videos after decoding:", videos.length);
+      
+      videos.forEach((video, index) => {
+        console.log(`Processing video ${index}:`, video.outerHTML);
+        
+        // Ensure the video has controls attribute
+        if (!video.hasAttribute('controls')) {
+          video.setAttribute('controls', 'true');
+        }
+        
+        // Make sure the video has proper styling
+        video.style.maxWidth = '100%';
+        video.style.borderRadius = '4px';
+        video.style.margin = '10px 0';
+        video.style.display = 'block';
+        
+        // Fix video sources
+        const source = video.querySelector('source');
+        if (source) {
+          const src = source.getAttribute('src');
+          if (src) {
+            // Make sure the URL is absolute
+            if (src.startsWith('/uploads/')) {
+              source.setAttribute('src', `http://localhost:8000${src}`);
+            }
+            console.log(`Video ${index} source:`, source.getAttribute('src'));
+          }
+        }
+        
+        // Force the video to reload with the new attributes
+        try {
+          video.load();
+          console.log(`Video ${index} reloaded`);
+        } catch (e) {
+          console.error(`Error reloading video ${index}:`, e);
+        }
+      });
+    }
+    
+    // Also check for videos that might already be in the DOM but missing controls
+    const existingVideos = contentDiv.querySelectorAll('video');
+    existingVideos.forEach((video, index) => {
+      if (!video.hasAttribute('controls')) {
+        video.setAttribute('controls', 'true');
+        video.load();
+        console.log(`Added controls to existing video ${index}`);
+      }
+    });
+  };
 
   if (loading) {
     return (
@@ -456,9 +1343,6 @@ const PostView = () => {
                 <h3 className="font-medium text-lg dark:text-white">
                   {post.author ? `${post.author.first_name} ${post.author.last_name}` : 'Unknown Author'}
                 </h3>
-                <span className="text-gray-500 dark:text-gray-400">
-                  {new Date(post.created_at).toLocaleDateString()}
-                </span>
               </div>
             </div>
 
@@ -470,12 +1354,16 @@ const PostView = () => {
             </div>
 
             {/* Post Content */}
-            <div 
-              className="html-content"
-              dangerouslySetInnerHTML={{ 
-                __html: processHTMLWithDOM(post.content) 
-              }}
-            />
+            <div className="prose dark:prose-invert max-w-none mt-6">
+              <style dangerouslySetInnerHTML={{ __html: richTextStyles }} />
+              <div 
+                className="html-content"
+                dangerouslySetInnerHTML={{ 
+                  __html: processHTMLWithDOM(post.content)
+                }}
+                ref={contentRef}
+              />
+            </div>
 
             {/* Interactions */}
             <div className="mt-8 pt-6 border-t dark:border-gray-700">
@@ -624,6 +1512,13 @@ const PostView = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+
+            {/* Timestamp */}
+            <div className="flex justify-end mt-4">
+              <span className="text-sm text-gray-500 dark:text-gray-400" data-timestamp={post.created_at}>
+                {formatRelativeTime(post.created_at)}
+              </span>
             </div>
           </div>
         </motion.div>

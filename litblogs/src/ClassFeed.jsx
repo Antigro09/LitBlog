@@ -21,6 +21,7 @@ import './LitBlogs.css';
 import { toast } from 'react-hot-toast';
 import { IoMdHeart, IoMdHeartEmpty } from 'react-icons/io';
 import CommentThread from './components/CommentThread';
+import { formatRelativeTime, setupTimeUpdater } from './utils/timeUtils';
 
 const expandableListStyles = `
   .expandable-list {
@@ -237,19 +238,26 @@ const MediaPreview = ({ media, files, onRemove }) => {
   );
 };
 
+// Update the TinyMCE configuration to better preserve image attributes and styles
 const TINYMCE_CONFIG = {
   height: 400,
-  min_height: 300,
-  max_height: 500,
-  resize: false,
-  autoresize_bottom_margin: 50,
   menubar: false,
   plugins: [
-    'advlist','typography','lists', 'link', 'image', 'charmap',
-    'searchreplace', 'code', 'fullscreen', 'table', 'wordcount', 'fontfamily'
+    'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+    'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+    'insertdatetime', 'table', 'help', 'wordcount',
+    'quickbars', 'emoticons'
   ],
-  toolbar: 'formatselect | forecolor backcolor blocks fontfamily fontsizeselect| bold italic underline strikethrough| alignleft aligncenter alignright | bullist numlist | removeformat',
+  toolbar: [
+    'formatselect | fontsizeinput | forecolor backcolor | blocks',
+    'bold italic underline strikethrough | alignleft aligncenter alignright | bullist numlist | image customvideoupload customfileupload removeformat'
+  ],
   block_formats: 'Paragraph=p; Title=h1; Heading=h2; Subheading=h3; Small Heading=h4; Blockquote=blockquote',
+  
+  // Use the built-in font size input instead of the fontsize plugin
+  font_size_input_default_unit: 'pt',
+  font_size_formats: '8pt 10pt 12pt 14pt 16pt 18pt 24pt 36pt 48pt',
+  
   forced_root_block: 'p',
   content_style: `
     body { 
@@ -266,6 +274,82 @@ const TINYMCE_CONFIG = {
     h4 { font-size: 1.1em; font-weight: bold; margin: 0.5em 0; }
     blockquote { border-left: 3px solid #ccc; margin-left: 1em; padding-left: 1em; font-style: italic; }
     
+    /* File attachment styles */
+    .file-attachment {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+      user-select: none; /* Prevent text selection */
+      pointer-events: auto; /* Allow clicking buttons */
+      cursor: default; /* Show default cursor for the container */
+    }
+    
+    .file-attachment * {
+      cursor: default;
+      user-select: none;
+    }
+    
+    .file-attachment .file-icon {
+      margin-right: 12px;
+      font-size: 24px;
+      color: #4a5568;
+    }
+    
+    .file-attachment .file-info {
+      flex-grow: 1;
+      flex-shrink: 1;
+      min-width: 0; /* Allow text to wrap */
+      overflow: hidden; /* Prevent overflow */
+    }
+    
+    .file-attachment .file-name {
+      font-weight: 500;
+      margin-bottom: 2px;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      white-space: normal;
+    }
+    
+    .file-attachment .file-size {
+      font-size: 12px;
+      color: #718096;
+    }
+    
+    .file-attachment .file-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .file-attachment .file-actions button {
+      cursor: pointer !important; /* Force pointer cursor for buttons */
+      pointer-events: auto !important; /* Ensure buttons are clickable */
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    
+    .file-attachment .preview-btn {
+      background-color: #ebf8ff;
+      color: #3182ce;
+      border: 1px solid #bee3f8;
+    }
+    
+    .file-attachment .download-btn {
+      background-color: #e6fffa;
+      color: #319795;
+      border: 1px solid #b2f5ea;
+    }
+    
+    .file-attachment .remove-btn {
+      background-color: #fff5f5;
+      color: #e53e3e;
+      border: 1px solid #fed7d7;
+    }
+    
     /* Fix dropdown spacing */
     .tox-collection__item-label {
       padding-left: 4px !important;
@@ -276,21 +360,584 @@ const TINYMCE_CONFIG = {
     .tox-tbtn__select-label {
       margin-left: 0 !important;
     }
+    
+    /* Editor-only elements - only visible in the editor */
+    .mce-content-body .editor-only {
+      display: inline-block;
+    }
+    
+    /* Hide editor-only elements in the published content */
+    .html-content .editor-only {
+      display: none;
+    }
   `,
   statusbar: false,
-  extended_valid_elements: 'span[style|class]',
+  extended_valid_elements: 'span[style|class],div[class|data-*|contenteditable],img[*|style|class|width|height|align|data-*],a[*],button[*]',
   inline_styles: true,
   paste_as_text: false,
+  paste_data_images: true,
+  automatic_uploads: true,
+  file_picker_types: 'file image media',
   paste_retain_style_properties: 'color,background-color,font-size',
   browser_spellcheck: true,
-  font_formats: 'Arial=arial,helvetica,sans-serif;' + 
-                'Times New Roman=times new roman,times,serif;' +
+  font_formats: 'Arial=arial,helvetica,sans-serif;' +
                 'Courier New=courier new,courier,monospace;' +
-                'Georgia=georgia,serif;' +
+                'Georgia=georgia,times new roman,times,serif;' +
                 'Tahoma=tahoma,arial,helvetica,sans-serif;' +
+                'Times New Roman=times new roman,times,serif;' +
                 'Trebuchet MS=trebuchet ms,geneva,sans-serif;' +
                 'Verdana=verdana,geneva,sans-serif',
+  
+  // Enhanced image handling
+  image_advtab: true,
+  image_dimensions: true,
+  image_class_list: [
+    { title: 'None', value: '' },
+    { title: 'Responsive', value: 'img-fluid' },
+    { title: 'Left Aligned', value: 'float-left' },
+    { title: 'Right Aligned', value: 'float-right' },
+    { title: 'Centered', value: 'mx-auto d-block' }
+  ],
+  
+  // Preserve styles when editing
+  preserve_styles: true,
+  
+  // Add image_upload_handler to handle direct uploads from TinyMCE's default dialog
+  images_upload_handler: async function (blobInfo, progress) {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', blobInfo.blob(), blobInfo.filename());
+      
+      const token = localStorage.getItem('token');
+      
+      axios.post('http://localhost:8000/api/upload', formData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (e) => {
+          progress(e.loaded / e.total * 100);
+        }
+      })
+      .then(response => {
+        resolve(response.data.url);
+      })
+      .catch(error => {
+        reject('Image upload failed: ' + error.message);
+      });
+    });
+  },
+  
+  // Critical settings for image resizing and alignment
+  object_resizing: true,
+  resize_img_proportional: true,
+  
+  // Don't convert URLs - this is critical
+  convert_urls: false,
+  relative_urls: false,
+  
+  // Ensure all styles are preserved
+  valid_styles: '*[*]',
+  
+  // Configure non-editable classes
+  noneditable_noneditable_class: 'mceNonEditable',
+  noneditable_editable_class: 'mceEditable',
+  
+  // Allow the noneditable plugin to work with our elements
+  protect: [
+    /\<div[^>]*class="file\-attachment"[^>]*\>[\s\S]*?\<\/div\>/g
+  ],
+  
+  setup: function(editor) {
+    // Customize the image button to show our enhanced dialog
+    editor.ui.registry.addButton('image', {
+      icon: 'image',
+      tooltip: 'Insert image',
+      onAction: function() {
+        // Create custom image dialog
+        editor.windowManager.open({
+          title: 'Insert Image',
+          body: {
+            type: 'panel',
+            items: [
+              {
+                type: 'selectbox',
+                name: 'source',
+                label: 'Image Source',
+                items: [
+                  { value: 'upload', text: 'Upload from Computer' },
+                  { value: 'url', text: 'Insert from URL' }
+                ]
+              },
+              {
+                type: 'input',
+                name: 'url',
+                label: 'Image URL',
+                enabled: false
+              },
+              {
+                type: 'dropzone',
+                name: 'file',
+                label: 'Upload Image'
+              }
+            ]
+          },
+          buttons: [
+            {
+              type: 'cancel',
+              text: 'Cancel'
+            },
+            {
+              type: 'submit',
+              text: 'Insert',
+              primary: true
+            }
+          ],
+          initialData: {
+            source: 'upload'
+          },
+          onChange: function(api, details) {
+            if (details.name === 'source') {
+              // Toggle fields based on selected source
+              if (details.value === 'upload') {
+                api.setEnabled('file', true);
+                api.setEnabled('url', false);
+              } else {
+                api.setEnabled('file', false);
+                api.setEnabled('url', true);
+              }
+            }
+          },
+          onSubmit: async function(api) {
+            const data = api.getData();
+            
+            try {
+              if (data.source === 'upload' && data.file) {
+                // Handle file upload
+                const file = data.file;
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const token = localStorage.getItem('token');
+                const response = await axios.post(
+                  'http://localhost:8000/api/upload',
+                  formData,
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'multipart/form-data'
+                    }
+                  }
+                );
+                
+                // Insert the uploaded image
+                editor.insertContent(`<img src="${response.data.url}" alt="${file.name}" style="max-width: 100%; height: auto;" />`);
+              } else if (data.source === 'url' && data.url) {
+                // Insert image from URL
+                editor.insertContent(`<img src="${data.url}" alt="Image from URL" style="max-width: 100%; height: auto;" />`);
+              }
+              
+              api.close();
+            } catch (error) {
+              console.error('Error handling image:', error);
+              editor.notificationManager.open({
+                text: 'Failed to process image. Please try again.',
+                type: 'error'
+              });
+              api.close();
+            }
+          }
+        });
+      }
+    });
+
+    // Add custom file upload button
+    editor.ui.registry.addButton('customfileupload', {
+      icon: 'upload',
+      tooltip: 'Upload File',
+      onAction: function() {
+        // Create a file input element
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', '*/*'); // Accept all file types
+        
+        // Trigger click on the input element
+        input.click();
+        
+        // Handle file selection
+        input.onchange = async function() {
+          if (input.files && input.files[0]) {
+            const file = input.files[0];
+            
+            try {
+              // Upload the file to the server
+              const formData = new FormData();
+              formData.append('file', file);
+              
+              const token = localStorage.getItem('token');
+              const response = await axios.post(
+                'http://localhost:8000/api/upload',
+                formData,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                  }
+                }
+              );
+              
+              // Get the file URL from the response
+              const fileUrl = response.data.url;
+              const fileSize = formatFileSize(file.size);
+              const fileName = file.name;
+              const fileType = getFileType(file.name);
+              
+              // Create HTML for the file attachment
+              let fileHtml = `
+                <div class="mceNonEditable file-attachment" 
+                     data-file-url="${fileUrl}" 
+                     data-file-name="${fileName}" 
+                     data-file-size="${fileSize}" 
+                     data-file-type="${fileType}">
+                  <div class="file-icon">${getFileIcon(fileType)}</div>
+                  <div class="file-info">
+                    <div class="file-name" style="word-break: break-word; overflow-wrap: break-word;">${fileName}</div>
+                    <div class="file-size">${fileSize}</div>
+                  </div>
+                  <div class="file-actions">
+                    <button class="remove-btn editor-only" type="button" data-file-url="${fileUrl}" onclick="this.closest('.file-attachment').remove();">Remove</button>
+                  </div>
+                </div>
+              `;
+              
+              // Insert the file attachment at the cursor position
+              editor.insertContent(fileHtml);
+              
+            } catch (error) {
+              console.error('Error uploading file:', error);
+              toast.error('Failed to upload file. Please try again.');
+            }
+          }
+        };
+      }
+    });
+    
+    // Add custom handlers for file preview
+    editor.on('init', function() {
+      // Add global function for file preview
+      window.previewFile = function(url, type) {
+        // Create modal for preview
+        const modal = document.createElement('div');
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.8)';
+        modal.style.zIndex = '9999';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        
+        // Create close button
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '20px';
+        closeBtn.style.right = '20px';
+        closeBtn.style.fontSize = '30px';
+        closeBtn.style.color = 'white';
+        closeBtn.style.background = 'none';
+        closeBtn.style.border = 'none';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.onclick = function() {
+          document.body.removeChild(modal);
+        };
+        
+        // Create content container
+        const content = document.createElement('div');
+        content.style.maxWidth = '90%';
+        content.style.maxHeight = '90%';
+        content.style.overflow = 'auto';
+        content.style.backgroundColor = 'white';
+        content.style.borderRadius = '8px';
+        content.style.padding = '20px';
+        
+        // Add content based on file type
+        if (type === 'image') {
+          const img = document.createElement('img');
+          img.src = url;
+          img.style.maxWidth = '100%';
+          content.appendChild(img);
+        } else if (type === 'video') {
+          const video = document.createElement('video');
+          video.src = url;
+          video.controls = true;
+          video.style.maxWidth = '100%';
+          content.appendChild(video);
+        } else if (type === 'pdf') {
+          const iframe = document.createElement('iframe');
+          iframe.src = url;
+          iframe.style.width = '800px';
+          iframe.style.height = '600px';
+          content.appendChild(iframe);
+        } else if (type === 'text') {
+          // For text files, fetch and display content
+          fetch(url)
+            .then(response => response.text())
+            .then(text => {
+              const pre = document.createElement('pre');
+              pre.style.whiteSpace = 'pre-wrap';
+              pre.style.fontFamily = 'monospace';
+              pre.textContent = text;
+              content.appendChild(pre);
+            });
+        } else {
+          // For unsupported preview types
+          const message = document.createElement('p');
+          message.textContent = 'Preview not available for this file type. Please download the file to view it.';
+          content.appendChild(message);
+        }
+        
+        modal.appendChild(closeBtn);
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+      };
+    });
+    
+    // Register the deleteFileFromServer function with the editor
+    editor.addCommand('deleteFileFromServer', function(ui, url) {
+      deleteFileFromServer(url);
+    });
+    
+    // This is critical for preserving image dimensions
+    editor.on('ObjectResized', function(e) {
+      if (e.target.nodeName === 'IMG') {
+        // Set both style and attributes for maximum compatibility
+        e.target.setAttribute('width', e.width);
+        e.target.setAttribute('height', e.height);
+        e.target.style.width = e.width + 'px';
+        e.target.style.height = e.height + 'px';
+      }
+    });
+    
+    // Add this to ensure content is not modified during save
+    editor.on('BeforeSetContent', function(e) {
+      // Don't modify content when setting it in the editor
+    });
+    
+    editor.on('GetContent', function(e) {
+      // Don't modify content when retrieving it from the editor
+    });
+    
+    // Listen for clicks on the editor content
+    editor.on('click', function(e) {
+      // Check if the clicked element is a remove button
+      if (e.target.classList.contains('remove-btn') && e.target.dataset.fileUrl) {
+        // Get the file URL from the data attribute
+        const fileUrl = e.target.dataset.fileUrl;
+        
+        // Delete the file from the server
+        deleteFileFromServer(fileUrl);
+      }
+    });
+    
+    // Add custom video upload button
+    editor.ui.registry.addButton('customvideoupload', {
+      icon: 'embed',
+      tooltip: 'Upload Video',
+      onAction: function() {
+        // Create a file input element
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'video/*');
+        
+        // Handle file selection
+        input.onchange = async function() {
+          if (input.files && input.files[0]) {
+            const file = input.files[0];
+            
+            // Check file size (limit to 100MB)
+            const maxSize = 100 * 1024 * 1024; // 100MB in bytes
+            if (file.size > maxSize) {
+              toast.error(`Video file is too large. Maximum size is 100MB.`);
+              return;
+            }
+            
+            // Check file type
+            const validTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+            if (!validTypes.includes(file.type)) {
+              toast.error('Please upload a valid video file (MP4, WebM, or OGG).');
+              return;
+            }
+            
+            try {
+              // Show loading toast
+              const loadingToast = toast.loading('Uploading video...');
+              
+              // Create form data for upload
+              const formData = new FormData();
+              formData.append('file', file);
+              
+              // Upload the video
+              const token = localStorage.getItem('token');
+              const response = await axios.post('http://localhost:8000/api/upload', formData, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'multipart/form-data'
+                }
+              });
+              
+              // Get the uploaded file URL and log for debugging
+              console.log("Video upload response:", response.data);
+              
+              // Check if the response contains the expected data
+              // Handle both url and file_url formats
+              let videoUrl = null;
+              if (response.data && response.data.url) {
+                videoUrl = response.data.url;
+              } else if (response.data && response.data.file_url) {
+                videoUrl = response.data.file_url;
+              } else {
+                console.error("Invalid response format:", response.data);
+                toast.error('Server returned an invalid response. Please try again.');
+                toast.dismiss(loadingToast);
+                return;
+              }
+              
+              console.log("Video URL:", videoUrl);
+              
+              // Ensure the URL is properly formatted
+              const fullVideoUrl = videoUrl && videoUrl.startsWith('/') 
+                ? `http://localhost:8000${videoUrl}` 
+                : videoUrl && videoUrl.startsWith('http') 
+                  ? videoUrl 
+                  : `http://localhost:8000/${videoUrl}`;
+                  
+              console.log("Full video URL:", fullVideoUrl);
+              
+              // Create a cleaner HTML for the video with a delete button overlay
+              let videoHtml = `
+                <figure class="video-container" contenteditable="false">
+                  <video controls width="100%" style="max-width: 600px; border-radius: 4px; display: block;">
+                    <source src="${fullVideoUrl}" type="${file.type}">
+                    Your browser does not support the video tag.
+                  </video>
+                  <div class="video-delete-overlay" style="position: absolute; top: 8px; right: 8px; z-index: 10; display: none;">
+                    <button type="button" class="video-delete-btn" style="background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" data-video-url="${videoUrl}" onclick="event.stopPropagation(); this.closest('.video-container').remove(); window.deleteVideoFromServer('${videoUrl}');">×</button>
+                  </div>
+                </figure>
+              `;
+              
+              // Insert the video HTML
+              editor.insertContent(videoHtml);
+              
+              // Add hover effect for the delete button using JavaScript
+              editor.on('NodeChange', function() {
+                const videoWrappers = editor.getBody().querySelectorAll('.video-container');
+                videoWrappers.forEach(wrapper => {
+                  if (!wrapper.dataset.eventAdded) {
+                    wrapper.dataset.eventAdded = 'true';
+                    
+                    const deleteOverlay = wrapper.querySelector('.video-delete-overlay');
+                    
+                    wrapper.addEventListener('mouseenter', function() {
+                      deleteOverlay.style.display = 'block';
+                    });
+                    
+                    wrapper.addEventListener('mouseleave', function() {
+                      deleteOverlay.style.display = 'none';
+                    });
+                  }
+                });
+              });
+              
+              // Dismiss loading toast and show success
+              toast.dismiss(loadingToast);
+              toast.success('Video uploaded successfully!');
+            } catch (error) {
+              console.error('Error uploading video:', error);
+              toast.error('Failed to upload video. Please try again.');
+            }
+          }
+        };
+        
+        // Trigger the file input click
+        input.click();
+      }
+    });
+    
+    // Listen for clicks on the editor content
+    editor.on('click', function(e) {
+      // Check if the clicked element is a remove button
+      if (e.target.classList.contains('remove-btn')) {
+        // Get the file or video URL from the data attribute
+        const fileUrl = e.target.dataset.fileUrl || e.target.dataset.videoUrl;
+        
+        if (fileUrl) {
+          // Delete the file from the server
+          deleteFileFromServer(fileUrl);
+        }
+      }
+    });
+  },
 };
+
+// Helper functions for file handling
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function getFileType(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+    return 'image';
+  } else if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+    return 'video';
+  } else if (ext === 'pdf') {
+    return 'pdf';
+  } else if (['txt', 'md', 'html', 'css', 'js', 'json', 'xml'].includes(ext)) {
+    return 'text';
+  } else if (['doc', 'docx'].includes(ext)) {
+    return 'word';
+  } else if (['xls', 'xlsx'].includes(ext)) {
+    return 'excel';
+  } else if (['ppt', 'pptx'].includes(ext)) {
+    return 'powerpoint';
+  } else {
+    return 'other';
+  }
+}
+
+function isPreviewable(fileType) {
+  return ['image', 'video', 'pdf', 'text'].includes(fileType);
+}
+
+function getFileIcon(fileType) {
+  switch (fileType) {
+    case 'image':
+      return '🖼️';
+    case 'video':
+      return '🎬';
+    case 'pdf':
+      return '📄';
+    case 'text':
+      return '📝';
+    case 'word':
+      return '📘';
+    case 'excel':
+      return '📊';
+    case 'powerpoint':
+      return '📑';
+    default:
+      return '📁';
+  }
+}
 
 // Add this function near the top of the file, outside the component
 const processHTMLWithDOM = (html) => {
@@ -345,25 +992,161 @@ const processHTMLWithDOM = (html) => {
   return tempContainer.innerHTML;
 };
 
-// Add this function for truncating content
-const truncateHTML = (html, maxLength = 300) => {
+// Update the truncateHTML function in ClassFeed.jsx
+
+const truncateHTML = (html, maxLength) => {
+  if (!html) return '';
+  
   // Create a temporary div to parse the HTML
-  const tempContainer = document.createElement('div');
-  tempContainer.innerHTML = html;
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
   
-  // Get the text content
-  let textContent = tempContainer.textContent || tempContainer.innerText;
+  // Remove videos and their containers completely
+  const videoElements = tempDiv.querySelectorAll('video, .video-container, .video-wrapper, figure:has(video)');
+  videoElements.forEach(el => {
+    el.parentNode.removeChild(el);
+  });
   
-  if (textContent.length <= maxLength) {
-    return html;
+  // Also remove any elements containing video tags as text
+  const allElements = tempDiv.querySelectorAll('*');
+  allElements.forEach(el => {
+    if (el.innerHTML && (el.innerHTML.includes('<video') || el.innerHTML.includes('&lt;video'))) {
+      el.parentNode.removeChild(el);
+    }
+  });
+  
+  // Remove file attachments
+  const fileAttachments = tempDiv.querySelectorAll('.file-attachment');
+  fileAttachments.forEach(attachment => {
+    attachment.parentNode.removeChild(attachment);
+  });
+  
+  // Only show the first image
+  const images = tempDiv.querySelectorAll('img');
+  if (images.length > 1) {
+    for (let i = 1; i < images.length; i++) {
+      if (images[i].parentNode) {
+        images[i].parentNode.removeChild(images[i]);
+      }
+    }
   }
   
-  // Truncate the text
-  textContent = textContent.substring(0, maxLength).trim() + '...';
+  // Get the text content
+  let textContent = tempDiv.textContent || '';
   
-  // Create a simple paragraph with the truncated text
-  return `<p>${textContent}</p><p class="text-blue-500 font-medium mt-2">Read more</p>`;
+  // Truncate the text if needed
+  if (textContent.length > maxLength) {
+    // Create a new div with just the truncated text
+    const truncatedDiv = document.createElement('div');
+    truncatedDiv.textContent = textContent.substring(0, maxLength) + '...';
+    
+    // Add a "Read more" link
+    const readMoreDiv = document.createElement('div');
+    readMoreDiv.className = 'text-blue-500 font-medium mt-2';
+    readMoreDiv.textContent = 'Read more';
+    truncatedDiv.appendChild(readMoreDiv);
+    
+    return truncatedDiv.innerHTML;
+  }
+  
+  // Return the modified HTML
+  return tempDiv.innerHTML;
 };
+
+// Add this function to handle file deletion
+async function deleteFileFromServer(url) {
+  try {
+    // Extract the file path from the URL
+    // The URL format is /uploads/user_id/filename
+    const filePath = url.replace('/uploads/', '');
+    
+    const token = localStorage.getItem('token');
+    await axios.delete(`http://localhost:8000/api/upload/${filePath}`, {
+      headers: { 
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    console.log('File deleted successfully from server');
+  } catch (error) {
+    console.error('Error deleting file from server:', error);
+  }
+}
+
+// Make the deleteFileFromServer function available globally
+window.deleteFileFromServer = deleteFileFromServer;
+
+// Add a global function to delete the video from the server
+if (!window.deleteVideoFromServer) {
+  window.deleteVideoFromServer = function(videoUrl) {
+    if (!videoUrl) return;
+    
+    // Extract the file path from the URL
+    let filePath = videoUrl;
+    if (videoUrl.includes('/uploads/')) {
+      filePath = videoUrl.split('/uploads/')[1];
+    }
+    
+    // Get the token
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    // Delete the file from the server
+    axios.delete(`http://localhost:8000/api/upload/${filePath}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(response => {
+      console.log('Video deleted successfully:', response.data);
+      toast.success('Video deleted successfully');
+    })
+    .catch(error => {
+      console.error('Error deleting video:', error);
+      toast.error('Failed to delete video from server');
+    });
+  };
+}
+
+// Add this function at the top of your file, before any component definitions
+// Make sure it's outside of any component or function scope
+
+// Define the deleteVideoFromServer function globally
+function defineGlobalFunctions() {
+  // Add a global function to delete the video from the server
+  window.deleteVideoFromServer = function(videoUrl) {
+    if (!videoUrl) return;
+    
+    // Extract the file path from the URL
+    let filePath = videoUrl;
+    if (videoUrl.includes('/uploads/')) {
+      filePath = videoUrl.split('/uploads/')[1];
+    }
+    
+    // Get the token
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    // Delete the file from the server
+    axios.delete(`http://localhost:8000/api/upload/${filePath}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(response => {
+      console.log('Video deleted successfully:', response.data);
+      toast.success('Video deleted successfully');
+    })
+    .catch(error => {
+      console.error('Error deleting video:', error);
+      toast.error('Failed to delete video from server');
+    });
+  };
+  
+  // Make the deleteFileFromServer function available globally if it exists
+  if (typeof deleteFileFromServer === 'function') {
+    window.deleteFileFromServer = deleteFileFromServer;
+  }
+}
+
+// Call this function immediately to define the global functions
+defineGlobalFunctions();
 
 const ClassFeed = () => {
   // Move all useState hooks to the top
@@ -412,6 +1195,14 @@ const ClassFeed = () => {
   const [commentCounts, setCommentCounts] = useState({});
 
   const gf = new GiphyFetch('FEzk8anVjSKZIiInlJWd4Jo4OuYBjV9B');
+
+  // Add this to your component's useEffect that runs on mount
+  useEffect(() => {
+    // Ensure global functions are defined
+    defineGlobalFunctions();
+    
+    // Rest of your existing useEffect code...
+  }, []);
 
   // Move all useEffect hooks together
   useEffect(() => {
@@ -588,44 +1379,28 @@ const ClassFeed = () => {
     fetchPostsAndCounts();
   }, [classId]);
 
+  useEffect(() => {
+    // Set up the time updater when the component mounts
+    const timeUpdateInterval = setupTimeUpdater();
+    
+    // Clean up the interval when the component unmounts
+    return () => clearInterval(timeUpdateInterval);
+  }, []);
+
   const createPost = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
       
-      // Format the post content with all rich elements
-      let formattedContent = postContent.text;
-
-      // Add media (images, GIFs)
-      postContent.media.forEach(media => {
-        if (media.type === 'gif') {
-          formattedContent += `\n[GIF:${media.url}]\n`;
-        } else if (media.type === 'image') {
-          formattedContent += `\n[IMAGE:${media.url}]\n`;
-        }
-      });
-
-      // Add polls
-      if (showPollForm && pollOptions.length > 0) {
-        const validOptions = pollOptions.filter(opt => opt.trim());
-        if (validOptions.length > 0) {
-          formattedContent += `\n[POLL:${validOptions.join(',')}]\n`;
-        }
-      }
-
-      // Add expandable lists
-      postContent.expandableLists.forEach(list => {
-        formattedContent += `\n[EXPANDABLE:${list.title}]${list.content}\n`;
-      });
-
+      // The content already contains the embedded files as HTML
+      // TinyMCE will handle the placement of files exactly where the user put them
+      
       const response = await axios.post(
         `http://localhost:8000/api/classes/${classId}/posts`,
         {
           title: postTitle,
-          content: formattedContent,
-          media: postContent.media,
-          polls: showPollForm ? [{ options: pollOptions.filter(opt => opt.trim()) }] : [],
-          files: postContent.files
+          content: postContent.text, // This now contains all embedded files
+          // We don't need separate media, files arrays as they're embedded in the content
         },
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -650,8 +1425,11 @@ const ClassFeed = () => {
       });
       setPollOptions(['', '']);
       setShowPollForm(false);
+      
+      toast.success('Post created successfully!');
     } catch (error) {
       console.error('Error creating post:', error);
+      toast.error('Failed to create post. Please try again.');
     }
   };
 
@@ -1286,7 +2064,7 @@ const ClassFeed = () => {
                 } relative`}
               >
                 {/* Post Header and Details */}
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex items-start mb-4">
                   <div className="flex items-center">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                       darkMode ? 'bg-gray-700' : 'bg-gray-200'
@@ -1297,47 +2075,10 @@ const ClassFeed = () => {
                       <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                         {post.author || 'Unknown Author'}
                       </h3>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {post.timestamp || new Date(post.created_at).toLocaleDateString()}
-                      </span>
                     </div>
                   </div>
-                  
-                  {/* Post Options Menu (3 dots) */}
-                  {post.owner_id === userInfo.id && (
-                    <div className="absolute top-3 right-3">
-                      <button 
-                        onClick={() => setMenuOpen(menuOpen === post.id ? null : post.id)}
-                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                        </svg>
-                      </button>
-                      
-                      {/* Dropdown Menu */}
-                      {menuOpen === post.id && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-20 border dark:border-gray-700">
-                          <div className="py-1">
-                            <button
-                              onClick={() => handlePostAction('edit', post)}
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handlePostAction('delete', post)}
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
-              
+
                 {/* Post Title - without label */}
                 <div 
                   className={`mb-4 px-4 py-3 rounded-lg border cursor-pointer ${darkMode ? 'bg-gray-750 border-gray-600' : 'bg-blue-50 border-blue-100'}`}
@@ -1443,15 +2184,14 @@ const ClassFeed = () => {
                 
                 {/* Post Actions/Stats */}
                 <div className="flex items-center justify-between mt-4 pt-4 border-t dark:border-gray-700">
-                  <div className="flex items-center space-x-6">
-                    {/* Like button with animations */}
+                  <div className="flex items-center space-x-4">
+                    {/* Like button */}
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         handleLikePost(post.id);
                       }}
-                      className="flex items-center space-x-1 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors relative"
-                      disabled={likesLoading[post.id]}
+                      className="flex items-center space-x-1 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
                     >
                       <div className="relative">
                         {likedPosts[post.id]?.userLiked ? (
@@ -1479,7 +2219,7 @@ const ClassFeed = () => {
                       <span>{likedPosts[post.id]?.count || 0}</span>
                     </button>
                     
-                    {/* Comment button (existing or new) */}
+                    {/* Comment button */}
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1495,10 +2235,10 @@ const ClassFeed = () => {
                     </button>
                   </div>
                   
-                  {/* Post metadata (date/time, etc.) */}
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(post.created_at).toLocaleDateString()}
-                  </div>
+                  {/* Timestamp - now aligned with the action buttons */}
+                  <span className="text-sm text-gray-500 dark:text-gray-400" data-timestamp={post.created_at}>
+                    {formatRelativeTime(post.created_at)}
+                  </span>
                 </div>
               </motion.div>
             ))}
